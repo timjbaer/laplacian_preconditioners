@@ -38,12 +38,16 @@ int main(int argc, char** argv)
     if (k != -1) {
       int64_t matSize = pow(3, k);
       auto B = generate_kronecker(&w, k);
+
+      // L = D - A
+      Function<wht, wht> addinv([](wht a){ return -a; });
+      (*B)["ij"] = addinv((*B)["ij"]);
       (*B)["ii"] = (*B)["ij"];
+      (*B)["ii"] = addinv((*B)["ii"]);
 
       if (w.rank == 0) {
         printf("Running connectivity on Kronecker graph K: %d matSize: %ld\n", k, matSize);
       }
-      // TODO: do something
       B->print_matrix();
       delete B;
     }
