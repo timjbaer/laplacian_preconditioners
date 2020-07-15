@@ -60,15 +60,20 @@ char* getCmdOption(char ** begin,
 
 int main(int argc, char ** argv){
   int rank, np, pass, nlvl, ndiv, decay_exp, nsmooth, k;
+  int const in_num = argc;
+  char ** input_str = argv;
   int * nsm;
   int64_t n;
   REAL sp_frac;
-  int const in_num = argc;
-  char ** input_str = argv;
+  char * gfile = NULL;
 
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &np);
+
+  if (getCmdOption(input_str, input_str+in_num, "-f")){
+    gfile = getCmdOption(input_str, input_str+in_num, "-f");
+  } else gfile = NULL;
 
   if (getCmdOption(input_str, input_str+in_num, "-n")){
     n = atoi(getCmdOption(input_str, input_str+in_num, "-n"));
@@ -115,6 +120,7 @@ int main(int argc, char ** argv){
   if (getCmdOption(input_str, input_str+in_num, "-k")) {
     k = atoi(getCmdOption(input_str, input_str+in_num, "-k"));
     if (k < 0) k = 5;
+    n = pow(3, k);
   } else k = -1;
   // K13 : 1594323 (matrix size)
   // K6 : 729; 531441 vertices
@@ -127,7 +133,7 @@ int main(int argc, char ** argv){
   int64_t all_lvl_ndiv=1;
   for (int i=0; i<nlvl; i++){ all_lvl_ndiv *= ndiv; }
 
-  assert(n%all_lvl_ndiv == 0);
+  //assert(n%all_lvl_ndiv == 0);
 
   {
     World dw(argc, argv);
@@ -138,37 +144,43 @@ int main(int argc, char ** argv){
       for (int i=0; i<nlvl+1; i++){ printf("%d ",nsm[i]); }
       printf("\n");
     }
-    Matrix<REAL> A;
+    Matrix<REAL> * A = NULL;
     Matrix<REAL> * P;
     Matrix<REAL> * PTAP;
-    Vector<REAL> b(n*n*n,dw,"b");
-    Vector<REAL> x(n*n*n,dw,"x");
+    Vector<REAL> b(n,dw,"b");
+    Vector<REAL> x(n,dw,"x");
 
-    if (k != -1) {
-      int64_t matSize = pow(3, k);
-      auto B = generate_kronecker(&dw, k);
-
-      // L = D - A // TODO: laplacian matrix is different on multiple processes
-      Function<wht, wht> addinv([](wht a){ return -a; });
-      (*B)["ij"] = addinv((*B)["ij"]);
-      (*B)["ii"] = (*B)["ij"];
-      (*B)["ii"] = addinv((*B)["ii"]);
-
+    if (gfile != NULL){
+      int n_nnz = 0;
+      A = read_matrix(dw, n, gfile, 0, &n_nnz);
       if (dw.rank == 0) {
-        printf("Running multigrid on Kronecker graph K: %d matSize: %ld\n", k, matSize);
+        printf("Running multigrid on real graph n: %ld\n", n);
       }
-      B->print_matrix();
-      delete B;
+    } else if (k != -1) {
+      A = generate_kronecker(&dw, k);
+      if (dw.rank == 0) {
+        printf("Running multigrid on Kronecker graph K: %d n: %ld\n", k, n);
+      }
+    } 
+    if (A != NULL) {
+      // L = D - A
+      Function<REAL, REAL> addinv([](REAL a){ return -a; });
+      (*A)["ij"] = addinv((*A)["ij"]);
+      (*A)["ii"] = (*A)["ij"];
+      (*A)["ii"] = addinv((*A)["ii"]);
 
-      setup_laplacian(n, nlvl, sp_frac, ndiv, decay_exp, A, P, PTAP, dw);
+      setup_laplacian(A->nrow, nlvl, sp_frac, ndiv, decay_exp, *A, P, PTAP, dw);
       b.fill_random(-1.E-1, 1.E-1);
+
+      pass = test_alg_multigrid(n, nlvl, nsm, *A, b, x, P, PTAP); // TODO: errs are not same for different np
+      //assert(pass);
+
+      delete A;
     } else {
       if (dw.rank == 0) {
         printf("No graph specified\n");
       }
     }
-    pass = test_alg_multigrid(n*n*n, nlvl, nsm, A, b, x, P, PTAP);
-   // assert(pass);
   }
 
   MPI_Finalize();

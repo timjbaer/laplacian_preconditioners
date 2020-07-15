@@ -149,7 +149,7 @@ void setup(Matrix<REAL> & A, Matrix<REAL> * T, int N, int nlevel, Matrix<REAL> *
   setup(PTAP[0], T+1, m, nlevel-1, P+1, PTAP+1);
 }
 
-void setup_laplacian(int64_t         n,
+void setup_laplacian(int64_t         N,
                      int             nlvl,
                      REAL            sp_frac,
                      int             ndiv,
@@ -158,54 +158,11 @@ void setup_laplacian(int64_t         n,
                      Matrix<REAL> *& P,
                      Matrix<REAL> *& PTAP,
                      World &         dw){
-  int64_t n3 = n*n*n;
-  Timer tct("initialization");
+
+  Timer tct("T initialization");
   tct.start();
-  A = Matrix<REAL>(n3, n3, SP, dw);
-  srand48(dw.rank*12);
-  A.fill_sp_random(0.0, 1.0, sp_frac);
-
-  A["ij"] += A["ji"];
-  REAL pn = sqrt((REAL)n);
-  A["ii"] += pn;
-
-  if (dw.rank == 0){
-    printf("Generated matrix with dimension %1.2E and %1.2E nonzeros\n", (REAL)n3, (REAL)A.nnz_tot);
-    fflush(stdout);
-  }
-
-  Matrix<std::pair<REAL, int64_t>> B(n3,n3,SP,dw,Set<std::pair<REAL, int64_t>>());
-
-  int64_t * inds;
-  REAL * vals;
-  std::pair<REAL,int64_t> * new_vals;
-  int64_t nvals;
-  A.get_local_data(&nvals, &inds, &vals, true);
-
-  new_vals = (std::pair<REAL,int64_t>*)malloc(sizeof(std::pair<REAL,int64_t>)*nvals);
-
-  for (int64_t i=0; i<nvals; i++){
-    new_vals[i] = std::pair<REAL,int64_t>(vals[i],abs((inds[i]%n3) - (inds[i]/n3)));
-  }
-
-  B.write(nvals,inds,new_vals);
-  delete [] vals;
-  free(new_vals);
-  free(inds);
-
-  Transform< std::pair<REAL,int64_t> >([=](std::pair<REAL,int64_t> & d){ 
-    int64_t x =  d.second % n;
-    int64_t y = (d.second / n) % n;
-    int64_t z =  d.second / n  / n;
-    if (x+y+z > 0)
-      d.first = d.first/pow((REAL)(x+y+z),decay_exp/2.);
-    }
-  )(B["ij"]);
-  
-  A["ij"] = Function< std::pair<REAL,int64_t>, REAL >([](std::pair<REAL,int64_t> p){ return p.first; })(B["ij"]);
-
   Matrix<REAL> * T = new Matrix<REAL>[nlvl];
-  int64_t m=n3;
+  int64_t m=N;
   int tot_ndiv = ndiv*ndiv*ndiv;
   for (int i=0; i<nlvl; i++){
     int64_t m2 = m/tot_ndiv;
@@ -231,6 +188,6 @@ void setup_laplacian(int64_t         n,
 
   Timer_epoch ve("setup");
   ve.begin();
-  setup(A, T, n3, nlvl, P, PTAP);
+  setup(A, T, N, nlvl, P, PTAP);
   ve.end();
 }

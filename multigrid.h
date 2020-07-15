@@ -3,8 +3,6 @@
 
 #include "graph.h"
 
-typedef float REAL;
-
 void smooth_jacobi(Matrix<REAL> & A, Vector<REAL> & x, Vector <REAL> & b, int nsm);
 void vcycle(Matrix<REAL> & A, Vector<REAL> & x, Vector<REAL> & b, Matrix<REAL> * P, Matrix<REAL> * PTAP, int64_t N, int nlevel, int * nsm);
 
