@@ -4,6 +4,8 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as sla
 import matplotlib.pyplot as plt
 
+import argparse
+
 # form 2d poisson problem
 
 def mat_2d(N,a,b):
@@ -98,14 +100,79 @@ def multigrid_v3(A,f,x,w,iter,N,ind):
     return u, A1, A2
 
 if __name__ == "__main__":
-    N = 33
-    x = np.random.rand((N-2) **2)
+    N = 0
+    A = None # TODO: add support for symmetry?
 
-    a = 0
-    b = 1
+    FILE = ""
+    K = 0
+    NRAND = 0
+    NPOISSON = 0
+    PLOT = False
+    to_laplacian = True
 
-    A = mat_2d(N,a,b)
-    f = np.ones((N-2) **2)
+    parser = argparse.ArgumentParser(description="""
+            This script runs AMG on the laplacian of a specified graph""")
+    parser.add_argument("-f", help="Path to METIS file")
+    parser.add_argument("-k", help="3^k Kronecker graph")
+    parser.add_argument("-nrand", help="Size of random matrix")
+    parser.add_argument("-npoisson", help="Size of Poisson matrix")
+    parser.add_argument("-plot", help="Plot show")
+
+    args = parser.parse_args()
+
+    if args.f != None: FILE = args.f
+    if args.k != None: K = int(args.k)
+    if args.nrand != None: NRAND = int(args.nrand)
+    if args.npoisson != None: NPOISSON = int(args.npoisson)
+    if args.plot != None: PLOT = bool(args.plot)
+
+    if FILE != "":
+        print("File reading is not supported yet")
+        assert(False)
+    elif K > 0:
+        N = 3 ** K
+
+        G = sp.csr_matrix([[1, 1, 0],
+                           [1, 1, 1],
+                           [0, 1, 1]])
+        A = G
+        for i in range(K - 1):
+            A = sp.kron(G, A)
+        A = A.tocsr()
+    elif NRAND > 0:
+        N = NRAND
+        A = sp.random(N, N, density=0.25, format='csr')
+    elif NPOISSON > 0:
+        N = NPOISSON
+
+        a = 0
+        b = 1
+
+        A = mat_2d(N,a,b)
+
+        #N = (N-2) ** 2
+    else:
+        N = 33
+
+        a = 0
+        b = 1
+
+        A = mat_2d(N,a,b)
+        to_laplacian = False
+
+        #N = (N-2) ** 2
+
+    # convert A to a Laplacian matrix
+    if to_laplacian:
+        sp.csr_matrix.setdiag(A, [0 for i in range(N)])
+        row_sum = A.sum(axis=1)
+        row_sum = [row_sum[i, 0] for i in range(N)] # flatten
+        sp.csr_matrix.setdiag(A, row_sum)
+
+    #x = np.random.rand(N)
+    #f = np.ones(N)
+    x = np.random.rand((N-2)**2)
+    f = np.ones((N-2)**2)
 
     # direct solve
 
@@ -121,8 +188,7 @@ if __name__ == "__main__":
     err_v3_wj = []
     err_v3_gs = []
 
-    show_plot = False
-    if not show_plot:
+    if not PLOT:
         u_v3_j,_,_ = multigrid_v3(A,f,x,1,iter_array[-1],N,0)
         u_v3_wj,_,_ = multigrid_v3(A,f,x,w,iter_array[-1],N,0)
         u_v3_gs,_,_ = multigrid_v3(A,f,x,1,iter_array[-1],N,1)
