@@ -51,8 +51,11 @@ def interpolation1d(nc, nf):
     for i in range(nc):
         I[:,i] = [2*i, 2*i+1, 2*i+2]
     J = np.repeat([np.arange(nc)], 3, axis=0)
+    #P = sp.coo_matrix(
+    #    (d.ravel(), (I.ravel(), J.ravel()))
+    #    ).tocsr()
     P = sp.coo_matrix(
-        (d.ravel(), (I.ravel(), J.ravel()))
+        (d.ravel(), (I.ravel(), J.ravel()), shape=(nf, nc))
         ).tocsr()
     return 0.5 * P
 
@@ -61,10 +64,14 @@ def interpolation1d(nc, nf):
 def multigrid_v3(A,f,x,w,iter,N,ind):
 
     # form multigrid operators for all levels
-    N1 = int( (N-1)/2 + 1)
-    N2 = int( (N1-1)/2 + 1)
-    P1 = interpolation1d(N1-2,N-2)
-    P2 = interpolation1d(N2-2,N1-2)
+    #N1 = int( (N-1)/2 + 1)
+    #N2 = int( (N1-1)/2 + 1)
+    #P1 = interpolation1d(N1-2,N-2)
+    #P2 = interpolation1d(N2-2,N1-2)
+    N1 = int(N / 2)
+    N2 = int(N / 2)
+    P1 = interpolation1d(N1,N)
+    P2 = interpolation1d(N2,N1)
     P1_2D = sp.kron(P1,P1).tocsr()
     P2_2D = sp.kron(P2,P2).tocsr()
     A1 = P1_2D.T@A@ P1_2D
@@ -169,10 +176,10 @@ if __name__ == "__main__":
         row_sum = [row_sum[i, 0] for i in range(N)] # flatten
         sp.csr_matrix.setdiag(A, row_sum)
 
-    #x = np.random.rand(N)
-    #f = np.ones(N)
-    x = np.random.rand((N-2)**2)
-    f = np.ones((N-2)**2)
+    x = np.random.rand(N)
+    f = np.ones(N)
+    #x = np.random.rand((N-2)**2)
+    #f = np.ones((N-2)**2)
 
     # direct solve
 
