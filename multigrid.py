@@ -89,9 +89,9 @@ def v_cycle(A,x,f,w,numiter,numlvls=1,ind=0,exact_solve=False):
     nc = (n+1)//2 - 1            # number of grid points in coarse
 
     # defining interpolating and restrictor operator
-    I = interpolation_1d(nc, nf)[:nf]  # edge-case handling
+    I = interpolation_1d(nc, nf)[:nf,:nc]  # edge-case handling
     I_2d = sp.kron(I,I).tocsr()
-    J = restrictor_1d(nc,nf)
+    J = restrictor_1d(nc,nf)[:nc,:nf]
     J_2d = sp.kron(J,J).tocsr()
 
     # relax on current grid and calculate residual
@@ -125,10 +125,19 @@ def v_cycle(A,x,f,w,numiter,numlvls=1,ind=0,exact_solve=False):
 # multigrid 3 level
 def multigrid_v3(A,f,x,w,iter,N,ind):
     # form multigrid operators for all levels
-    N1 = int( (N-1)/2 + 1)
-    N2 = int( (N1-1)/2 + 1)
-    P1 = interpolation_1d(N1-2,N-2)
-    P2 = interpolation_1d(N2-2,N1-2)
+    nf = int(A.shape[0]**.5)     # number of grids along an axis @ curr lvl
+    assert(nf == A.shape[0]**.5) # ensure is square
+    n  = nf+1
+    nc1 = (n+1)//2 - 1            # number of grid points in coarse lvl 1
+    nc2 = (nc1+1)//2 - 1          # number of grid points in coarse lvl 2
+
+    # N1 = int( (N-1)/2 + 1)
+    # N2 = int( (N1-1)/2 + 1)
+    # P1 = interpolation_1d(N1-2,N-2)
+    # P2 = interpolation_1d(N2-2,N1-2)
+
+    P1 = interpolation_1d(nf,nc1)[:nf,:nc1]     # subset for off-by-one error
+    P2 = interpolation_1d(nc1,nc2)[:nc1,:nc2]
     P1_2D = sp.kron(P1,P1).tocsr()
     P2_2D = sp.kron(P2,P2).tocsr()
     A1 = P1_2D.T@  A @ P1_2D
@@ -141,7 +150,7 @@ def multigrid_v3(A,f,x,w,iter,N,ind):
     f1 = P1_2D.T@r # restrict
 
     ## Level 1 ##
-    e = np.zeros((N1-2)**2)
+    e = np.zeros(nc1**2)
     u1 = smooth(A1,e,f1,w,iter) # smoothing
     r1 = f1 - A1@u1 # form residual
     f2 = P2_2D.T@r1 # restrict
@@ -160,7 +169,7 @@ def multigrid_v3(A,f,x,w,iter,N,ind):
     return u, A1, A2
 
 if __name__ == "__main__":
-    N = 33  # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
+    N = 32  # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
     n = N-1 # number of grid spaces
     nf = n-1
     nc = (n+1)//2 - 1
@@ -184,7 +193,7 @@ if __name__ == "__main__":
     err_v3_gs = []
 
     show_plot = True
-    numlvls=3
+    numlvls=2
     if not show_plot:
         u_v3_j,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,0)
         u_v3_wj,_,_ = multigrid_v3(A,x,f,w,iter_array[-1],N,0)
@@ -220,9 +229,11 @@ if __name__ == "__main__":
             u_v3_wj,_,_ = multigrid_v3(A,x,f,w,numiter,N,0)
             u_v3_gs,_,_ = multigrid_v3(A,x,f,1,numiter,N,1)
 
+            """ Recursive v-cycle code
             u_v3_j = v_cycle(A,x,f,1,numiter,numlvls,0,exact_solve=True)
             u_v3_wj = v_cycle(A,x,f,w,numiter,numlvls,0,exact_solve=True)
             u_v3_gs = v_cycle(A,x,f,1,numiter,numlvls,1,exact_solve=True)
+            """
 
             err_v3_j.append(la.norm(u_v3_j -u)/la.norm(u))
             err_v3_wj.append(la.norm(u_v3_wj -u)/la.norm(u))
