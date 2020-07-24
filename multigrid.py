@@ -183,7 +183,7 @@ if __name__ == "__main__":
     err_v3_wj = []
     err_v3_gs = []
 
-    show_plot = False
+    show_plot = True
     numlvls=3
     if not show_plot:
         u_v3_j,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,0)
@@ -215,14 +215,14 @@ if __name__ == "__main__":
         print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
 
     else:
-        for iter in iter_array:
-            u_v3_j,_,_ = multigrid_v3(A,x,f,1,iter,N,0)
-            u_v3_wj,_,_ = multigrid_v3(A,x,f,w,iter,N,0)
-            u_v3_gs,_,_ = multigrid_v3(A,x,f,1,iter,N,1)
+        for numiter in iter_array:
+            u_v3_j,_,_ = multigrid_v3(A,x,f,1,numiter,N,0)
+            u_v3_wj,_,_ = multigrid_v3(A,x,f,w,numiter,N,0)
+            u_v3_gs,_,_ = multigrid_v3(A,x,f,1,numiter,N,1)
 
-            u_v3_j = v_cycle(A,x,f,1,iter_array[-1],numlvls,0,exact_solve=True)
-            u_v3_wj = v_cycle(A,x,f,w,iter_array[-1],numlvls,0,exact_solve=True)
-            u_v3_gs = v_cycle(A,x,f,1,iter_array[-1],numlvls,1,exact_solve=True)
+            u_v3_j = v_cycle(A,x,f,1,numiter,numlvls,0,exact_solve=True)
+            u_v3_wj = v_cycle(A,x,f,w,numiter,numlvls,0,exact_solve=True)
+            u_v3_gs = v_cycle(A,x,f,1,numiter,numlvls,1,exact_solve=True)
 
             err_v3_j.append(la.norm(u_v3_j -u)/la.norm(u))
             err_v3_wj.append(la.norm(u_v3_wj -u)/la.norm(u))
@@ -230,9 +230,9 @@ if __name__ == "__main__":
 
         # plot the errors
         plt.figure()
-        plt.loglog(iter_array,err_v3_j,label = 'V cycle Jacobi', color = 'b', linestyle = '-')
-        plt.loglog(iter_array,err_v3_wj,label = 'V cycle wtd Jacobi', color = 'g', linestyle = '-')
-        plt.loglog(iter_array,err_v3_gs,label = 'V cycle Gauss-Seidel', color = 'r', linestyle = '-')
+        plt.semilogy(iter_array,err_v3_j,label = 'V cycle Jacobi', color = 'b', linestyle = '-')
+        plt.semilogy(iter_array,err_v3_wj,label = 'V cycle wtd Jacobi', color = 'g', linestyle = '-')
+        plt.semilogy(iter_array,err_v3_gs,label = 'V cycle Gauss-Seidel', color = 'r', linestyle = '-')
         plt.title('Multigrid error vs iteration')
         plt.ylabel('Error')
         plt.xlabel('Number of smoother iterations')
