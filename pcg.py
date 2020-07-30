@@ -18,7 +18,7 @@ def mat_2d(num_grid_pts, left_coor=0, right_coor=1):
     I = sp.eye(N-2,format='csr')
     return (1./h**2) * (sp.kron(I,A) + sp.kron(A,I))
 
-def pcg(A, x, f, N, numlvls):
+def pcg(A, x, f, N, accel="mg", numlvls=2):
     """
     @param A: matrix in system Ax=f
     @param x: initial guess to system Ax=f
@@ -29,10 +29,11 @@ def pcg(A, x, f, N, numlvls):
     See Saad's book pages 276 - 281 for reference
     """
     r = f - A @ x
-    #z = Minv @ r
     u = np.zeros(x.size, dtype=float)
-    z = v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
-    #z,_,_ = multigrid_v3(A, u, r, 1, 2**2, N, 1) 
+    if accel == "mg":
+        z,_,_ = multigrid_v3(A, r, u, 1, 2**2, N, 1) # Mz = r
+    else:
+        z = v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
     p = z
 
     for j in range(5):
@@ -42,10 +43,11 @@ def pcg(A, x, f, N, numlvls):
         a = np.inner(r, z) / np.inner(A @ p, p)
         x = x + a * p
         r = r - a * A @ p
-        #z = Minv @ r
         u = np.zeros(x.size, dtype=float)
-        z = v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
-        #z,_,_ = multigrid_v3(A, u, r, 1, 2**2, N, 1) 
+        if accel == "mg":
+            z,_,_ = multigrid_v3(A, r, u, 1, 2**2, N, 1) # Mz = r
+        else:
+            z = v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
         f = np.inner(r, z) / np.inner(r_prev, z_prev)
         p = z + f * p
 
@@ -68,5 +70,8 @@ if __name__ == "__main__":
     r = A@u - f
 
     numlvls = 2
-    u_v3_pcg_gs = pcg(A, x, f, N, numlvls)
-    print("PCG with V cycle Gauss-Seidel error: " + str(la.norm(u_v3_pcg_gs - u)/la.norm(u)))
+    u_v3_pcg_mg = pcg(A, x, f, N, accel="mg")
+    print("PCG with Multigrid Gauss-Seidel error: " + str(la.norm(u_v3_pcg_mg - u)/la.norm(u)))
+
+    u_v3_pcg_v = pcg(A, x, f, N, accel="v_cycle", numlvls=numlvls)
+    print("PCG with V cycle Gauss-Seidel error: " + str(la.norm(u_v3_pcg_v - u)/la.norm(u)))
