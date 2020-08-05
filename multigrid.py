@@ -4,18 +4,6 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as sla
 import matplotlib.pyplot as plt
 
-# form 2d poisson problem
-def mat_2d(num_grid_pts, left_coor=0, right_coor=1):
-    """ Sets up matrix for 2d Poisson problem
-    @returns matrix: system for 2D points over equaspaced points [left,right]
-    """
-    ## 2D matrix setup
-    x = np.linspace(left_coor,right_coor, num_grid_pts)
-    h = x[1]-x[0] # length between two grid points
-    A = sp.diags([1, -2, 1], [-1, 0, 1], shape=(N-2, N-2), format='csr')
-    I = sp.eye(N-2,format='csr')
-    return (1./h**2) * (sp.kron(I,A) + sp.kron(A,I))
-
 # Jacobi Smoother
 def wtd_jacobi(A,x,b,w,numiter):
     """
@@ -123,7 +111,7 @@ def v_cycle(A,x,f,w,numiter,numlvls=1,ind=0,exact_solve=False):
     return u
 
 # multigrid 3 level
-def multigrid_v3(A,f,x,w,iter,N,ind):
+def multigrid_v3(A,f,x,w,numiter,N,ind):
     # form multigrid operators for all levels
     nf = int(A.shape[0]**.5)     # number of grids along an axis @ curr lvl
     assert(nf == A.shape[0]**.5) # ensure is square
@@ -145,13 +133,13 @@ def multigrid_v3(A,f,x,w,iter,N,ind):
 
     ## level 0 ##
     smooth = gauss_seidel if ind==1 else wtd_jacobi
-    u = smooth(A,x,f,w,iter) # pre-smoothing
+    u = smooth(A,x,f,w,numiter) # pre-smoothing
     r = f - A@u # form residual
     f1 = P1_2D.T@r # restrict
 
     ## Level 1 ##
     e = np.zeros(nc1**2)
-    u1 = smooth(A1,e,f1,w,iter) # smoothing
+    u1 = smooth(A1,e,f1,w,numiter) # smoothing
     r1 = f1 - A1@u1 # form residual
     f2 = P2_2D.T@r1 # restrict
 
@@ -160,92 +148,94 @@ def multigrid_v3(A,f,x,w,iter,N,ind):
 
     ## Level 1 ##
     u1 = u1 + P2_2D@u2 # interpolate and correct previous solution
-    u1 = smooth(A1,u1,f1,w,iter) # smoothing
+    u1 = smooth(A1,u1,f1,w,numiter) # smoothing
 
     ## Level 0 ##
     u = u + P1_2D@u1 # interpolate and correct previous solution
 
-    u = smooth(A,u,f,w,iter) # post-smoothing
+    u = smooth(A,u,f,w,numiter) # post-smoothing
     return u, A1, A2
 
-if __name__ == "__main__":
-    N = 32  # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
-    n = N-1 # number of grid spaces
-    nf = n-1
-    nc = (n+1)//2 - 1
-
-    # setup problem system, Au=f
-    a = 0; b = 1
-    A = mat_2d(N,a,b)         # Poisson problem
-    x = np.random.rand(nf**2) # Initial guess
-    f = np.ones(nf**2)        # solution vector
-
-    # direct solve
-    u = sla.spsolve(A,f)
-    r = A@u - f
-
-    # multigrid acceleration
-    w = 2./3
-    iter_array = [2**k for k in range(7)]
-
-    err_v3_j = []
-    err_v3_wj = []
-    err_v3_gs = []
-
-    show_plot = True
-    numlvls=2
-    if not show_plot:
-        u_v3_j,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,0)
-        u_v3_wj,_,_ = multigrid_v3(A,x,f,w,iter_array[-1],N,0)
-        u_v3_gs,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,1)
-
-        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
-        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
-        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
-
-        print("\n=== Alt methods (w/o exact solve) ===")
-
-        u_v3_j = v_cycle(A,x,f,1,iter_array[-1],numlvls,0)
-        u_v3_wj = v_cycle(A,x,f,w,iter_array[-1],numlvls,0)
-        u_v3_gs = v_cycle(A,x,f,1,iter_array[-1],numlvls,1)
-
-        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
-        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
-        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
-
-        print("\n=== Alt methods (w exact solve) ===")
-
-        u_v3_j = v_cycle(A,x,f,1,iter_array[-1],numlvls,0,exact_solve=True)
-        u_v3_wj = v_cycle(A,x,f,w,iter_array[-1],numlvls,0,exact_solve=True)
-        u_v3_gs = v_cycle(A,x,f,1,iter_array[-1],numlvls,1,exact_solve=True)
-
-        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
-        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
-        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
-
-    else:
-        for numiter in iter_array:
-            u_v3_j,_,_ = multigrid_v3(A,x,f,1,numiter,N,0)
-            u_v3_wj,_,_ = multigrid_v3(A,x,f,w,numiter,N,0)
-            u_v3_gs,_,_ = multigrid_v3(A,x,f,1,numiter,N,1)
-
-            """ Recursive v-cycle code
-            u_v3_j = v_cycle(A,x,f,1,numiter,numlvls,0,exact_solve=True)
-            u_v3_wj = v_cycle(A,x,f,w,numiter,numlvls,0,exact_solve=True)
-            u_v3_gs = v_cycle(A,x,f,1,numiter,numlvls,1,exact_solve=True)
-            """
-
-            err_v3_j.append(la.norm(u_v3_j -u)/la.norm(u))
-            err_v3_wj.append(la.norm(u_v3_wj -u)/la.norm(u))
-            err_v3_gs.append(la.norm(u_v3_gs -u)/la.norm(u))
-
-        # plot the errors
-        plt.figure()
-        plt.semilogy(iter_array,err_v3_j,label = 'V cycle Jacobi', color = 'b', linestyle = '-')
-        plt.semilogy(iter_array,err_v3_wj,label = 'V cycle wtd Jacobi', color = 'g', linestyle = '-')
-        plt.semilogy(iter_array,err_v3_gs,label = 'V cycle Gauss-Seidel', color = 'r', linestyle = '-')
-        plt.title('Multigrid error vs iteration')
-        plt.ylabel('Error')
-        plt.xlabel('Number of smoother iterations')
-        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-        plt.show()
+#from test import mat_2d
+#
+#if __name__ == "__main__":
+#    N = 32  # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
+#    n = N-1 # number of grid spaces
+#    nf = n-1
+#    nc = (n+1)//2 - 1
+#
+#    # setup problem system, Au=f
+#    a = 0; b = 1
+#    A = mat_2d(N,a,b)         # Poisson problem
+#    x = np.random.rand(nf**2) # Initial guess
+#    f = np.ones(nf**2)        # solution vector
+#
+#    # direct solve
+#    u = sla.spsolve(A,f)
+#    r = A@u - f
+#
+#    # multigrid acceleration
+#    w = 2./3
+#    iter_array = [2**k for k in range(7)]
+#
+#    err_v3_j = []
+#    err_v3_wj = []
+#    err_v3_gs = []
+#
+#    show_plot = False
+#    numlvls=2
+#    if not show_plot:
+#        u_v3_j,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,0)
+#        u_v3_wj,_,_ = multigrid_v3(A,x,f,w,iter_array[-1],N,0)
+#        u_v3_gs,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,1)
+#
+#        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
+#        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
+#        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
+#
+#        print("\n=== Alt methods (w/o exact solve) ===")
+#
+#        u_v3_j = v_cycle(A,x,f,1,iter_array[-1],numlvls,0)
+#        u_v3_wj = v_cycle(A,x,f,w,iter_array[-1],numlvls,0)
+#        u_v3_gs = v_cycle(A,x,f,1,iter_array[-1],numlvls,1)
+#
+#        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
+#        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
+#        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
+#
+#        print("\n=== Alt methods (w exact solve) ===")
+#
+#        u_v3_j = v_cycle(A,x,f,1,iter_array[-1],numlvls,0,exact_solve=True)
+#        u_v3_wj = v_cycle(A,x,f,w,iter_array[-1],numlvls,0,exact_solve=True)
+#        u_v3_gs = v_cycle(A,x,f,1,iter_array[-1],numlvls,1,exact_solve=True)
+#
+#        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
+#        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
+#        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
+#
+#    else:
+#        for numiter in iter_array:
+#            u_v3_j,_,_ = multigrid_v3(A,x,f,1,numiter,N,0)
+#            u_v3_wj,_,_ = multigrid_v3(A,x,f,w,numiter,N,0)
+#            u_v3_gs,_,_ = multigrid_v3(A,x,f,1,numiter,N,1)
+#
+#            """ Recursive v-cycle code
+#            u_v3_j = v_cycle(A,x,f,1,numiter,numlvls,0,exact_solve=True)
+#            u_v3_wj = v_cycle(A,x,f,w,numiter,numlvls,0,exact_solve=True)
+#            u_v3_gs = v_cycle(A,x,f,1,numiter,numlvls,1,exact_solve=True)
+#            """
+#
+#            err_v3_j.append(la.norm(u_v3_j -u)/la.norm(u))
+#            err_v3_wj.append(la.norm(u_v3_wj -u)/la.norm(u))
+#            err_v3_gs.append(la.norm(u_v3_gs -u)/la.norm(u))
+#
+#        # plot the errors
+#        plt.figure()
+#        plt.semilogy(iter_array,err_v3_j,label = 'V cycle Jacobi', color = 'b', linestyle = '-')
+#        plt.semilogy(iter_array,err_v3_wj,label = 'V cycle wtd Jacobi', color = 'g', linestyle = '-')
+#        plt.semilogy(iter_array,err_v3_gs,label = 'V cycle Gauss-Seidel', color = 'r', linestyle = '-')
+#        plt.title('Multigrid error vs iteration')
+#        plt.ylabel('Error')
+#        plt.xlabel('Number of smoother iterations')
+#        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+#        plt.show()
