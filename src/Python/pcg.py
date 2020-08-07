@@ -1,10 +1,8 @@
 import numpy as np
-import scipy.linalg as la
 import scipy.sparse as sp
 import scipy.sparse.linalg as sla
-import matplotlib.pyplot as plt
 
-from multigrid import v_cycle, multigrid_v3
+import multigrid
 #from agg import agg_multigrid
 
 def pcg(A, x, f, N, cgiter=5, accel="mg", numlvls=2):
@@ -20,9 +18,9 @@ def pcg(A, x, f, N, cgiter=5, accel="mg", numlvls=2):
     r = f - A @ x
     u = np.zeros(x.size, dtype=float)
     if accel == "mg":
-        z,_,_ = multigrid_v3(A, r, u, 1, 2**2, N, 1) # Mz = r
+        z,_,_ = multigrid.v_cycle_3lvls(A, r, u, 1, 2**2, N, 1) # Mz = r
     else:
-        z = v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
+        z = multigrid.v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
     p = z
 
     for j in range(cgiter):
@@ -34,11 +32,11 @@ def pcg(A, x, f, N, cgiter=5, accel="mg", numlvls=2):
         r = r - a * A @ p
         u = np.zeros(x.size, dtype=float)
         if accel == "mg":
-            z,_,_ = multigrid_v3(A, r, u, 1, 2**2, N, 1) # Mz = r
+            z,_,_ = multigrid.v_cycle_3lvls(A, r, u, 1, 2**2, N, 1) # Mz = r
 #        elif accel == "agg":
 #            z,_,_ = agg_multigrid(A, r, u, 1, 2**2, N, 1) # Mz = r
         else:
-            z = v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
+            z = multigrid.v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
         f = np.inner(r, z) / np.inner(r_prev, z_prev)
         p = z + f * p
 
