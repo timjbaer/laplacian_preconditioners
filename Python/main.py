@@ -9,7 +9,8 @@ import multigrid, pcg, model
 #from agg import agg_multigrid
 
 def main():
-    N = 32  # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
+    # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
+    N = 128 
     PLOT = False
 
     parser = argparse.ArgumentParser(
@@ -80,7 +81,7 @@ def main():
         #print("PCG with V cycle Gauss-Seidel error: " + str(la.norm(u_v3_pcg_v - u)/la.norm(u)))
 
     else:
-        Npts = [i for i in range(32, 64, 4)]
+        Npts = [2**i for i in range(5,8)]
 
         err_mg = [] # 2-level multigrid with Gauss-Seidel
         err_vc = [] # V-cycle with Gauss-Seidel

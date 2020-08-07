@@ -56,6 +56,8 @@ def restrictor_1d(nc, nf):
 
 """
 AGM Prologation/Restricting Strategies
+Based on (http://ftp.demec.ufpr.br/multigrid/Bibliografias/Briggs_et_al_2000_Tutorial_with_corrections.pdf)
+chapter 8, AMG
 """
 def dependence_matrix(A,theta=0.5):
     """ returns binary matrix of strong influences
