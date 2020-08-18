@@ -98,7 +98,6 @@ def twod_model_with_stencil(stencil,n):
         sp.diags(diagonals=[1], offsets=[-1+i], shape=(n,n), format="csr") for i in range(3)
     ]
     # matrix to put on each block diagonal
-    B = one
     B_sup,B_main,B_sub = [
         oned_model_with_stencil(stencil[i,:],n) for i in range(3)
     ]

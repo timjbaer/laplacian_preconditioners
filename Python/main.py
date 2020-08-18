@@ -5,8 +5,7 @@ import scipy.sparse.linalg as sla
 import matplotlib.pyplot as plt
 import argparse
 
-import multigrid, pcg, model
-#from agg import agg_multigrid
+import multigrid, agg, pcg, model
 
 def main():
     # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
@@ -34,7 +33,7 @@ def main():
     nc = (n+1)//2 - 1
 
     # generate 2D Poisson problem
-    A = model.poisson_2d(nf)
+    A = -1.*model.poisson_2d(nf)
 
     # set guess and RHS of system
     x = np.random.rand(nf**2) 
@@ -52,7 +51,6 @@ def main():
     cgiter = 3
 
     if not PLOT:
-
         print("\n=== Two level multigrid (w exact solve) ===")
         u_v3_j,_,_ = multigrid.v_cycle_3lvls(A,x,f,1,iter_array[-1],N,0)
         u_v3_wj,_,_ = multigrid.v_cycle_3lvls(A,x,f,w,iter_array[-1],N,0)
@@ -71,22 +69,22 @@ def main():
 
 
         print("\n=== Preconitioned Conjugate Gradient ===")
-
         u_v3_pcg_mg = pcg.pcg(A,x,f,N,cgiter=cgiter,accel="mg")
         u_v3_pcg_v = pcg.pcg(A,x,f,N,cgiter=cgiter,accel="v_cycle",numlvls=numlvls)
+        u_v3_pcg_agg = pcg.pcg(A, x, f, N, accel="agg", numlvls=numlvls)
         print("PCG with Multigrid Gauss-Seidel error (w exact solve): " + str(la.norm(u_v3_pcg_mg - u)/la.norm(u)))
         print("PCG with V cycle Gauss-Seidel error (w/o exact solve): " + str(la.norm(u_v3_pcg_v - u)/la.norm(u)))
-
-        #u_v3_pcg_agg = pcg.pcg(A, x, f, N, accel="agg", numlvls=numlvls)
-        #print("PCG with V cycle Gauss-Seidel error: " + str(la.norm(u_v3_pcg_v - u)/la.norm(u)))
+        print("PCG with pairwise agg Gauss-Seidel error: " + str(la.norm(u_v3_pcg_agg - u)/la.norm(u)))
 
     else:
-        Npts = [2**i for i in range(5,8)]
+        #Npts = [2**i for i in range(5,8)]
+        Npts = [2**i for i in range(3,5)]
 
         err_mg = [] # 2-level multigrid with Gauss-Seidel
         err_vc = [] # V-cycle with Gauss-Seidel
         err_pcg_mg = [] # PCG 2-level multigrid with Gauss-Seidel
         err_pcg_vc = [] # PCG V-cycle with Gauss-Seidel
+        err_pcg_agg = [] # PCG 2-level multigrid (pairwise agg.) with Gauss-Seidel
 
         for N in Npts:
             n = N-1 # number of grid spaces
@@ -106,11 +104,13 @@ def main():
             u_vc = multigrid.v_cycle(A,x,f,1,2**2,numlvls,1,exact_solve=True)
             u_pcg_mg = pcg.pcg(A,x,f,N,cgiter=cgiter,accel="mg",numlvls=numlvls)
             u_pcg_vc = pcg.pcg(A,x,f,N,cgiter=cgiter,accel="vc",numlvls=numlvls)
+            u_pcg_agg = pcg.pcg(A, x, f, N, accel="agg", numlvls=numlvls)
 
             err_mg.append(la.norm(u_mg -u)/la.norm(u))
             err_vc.append(la.norm(u_vc -u)/la.norm(u))
             err_pcg_mg.append(la.norm(u_pcg_mg -u)/la.norm(u))
             err_pcg_vc.append(la.norm(u_pcg_vc -u)/la.norm(u))
+            err_pcg_agg.append(la.norm(u_pcg_agg -u)/la.norm(u))
 
         # plot the errors
         plt.figure()
@@ -118,6 +118,7 @@ def main():
         plt.semilogy(Npts,err_vc,label = 'V-cycle with GS', color = 'g', linestyle = '-')
         plt.semilogy(Npts,err_pcg_mg,label = 'PCG 2-level MG with GS', color = 'r', linestyle = '-')
         plt.semilogy(Npts,err_pcg_vc,label = 'PCG V-cycle with GS', color = 'y', linestyle = '-')
+        plt.semilogy(Npts,err_pcg_agg,label = 'PCG 2-level MG (pairwise agg.) with GS', color = 'm', linestyle = '-')
         plt.title('Error vs Size')
         plt.ylabel('Error (w/ exact solve)')
         plt.xlabel('Size')
@@ -126,29 +127,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-#        for numiter in iter_array:
-#            u_v3_j,_,_ = multigrid_v3(A,x,f,1,numiter,N,0)
-#            u_v3_wj,_,_ = multigrid_v3(A,x,f,w,numiter,N,0)
-#            u_v3_gs,_,_ = multigrid_v3(A,x,f,1,numiter,N,1)
-#
-#            """ Recursive v-cycle code
-#            u_v3_j = v_cycle(A,x,f,1,numiter,numlvls,0,exact_solve=True)
-#            u_v3_wj = v_cycle(A,x,f,w,numiter,numlvls,0,exact_solve=True)
-#            u_v3_gs = v_cycle(A,x,f,1,numiter,numlvls,1,exact_solve=True)
-#            """
-#
-#            err_v3_j.append(la.norm(u_v3_j -u)/la.norm(u))
-#            err_v3_wj.append(la.norm(u_v3_wj -u)/la.norm(u))
-#            err_v3_gs.append(la.norm(u_v3_gs -u)/la.norm(u))
-#
-#        # plot the errors
-#        plt.figure()
-#        plt.semilogy(iter_array,err_v3_j,label = 'V cycle Jacobi', color = 'b', linestyle = '-')
-#        plt.semilogy(iter_array,err_v3_wj,label = 'V cycle wtd Jacobi', color = 'g', linestyle = '-')
-#        plt.semilogy(iter_array,err_v3_gs,label = 'V cycle Gauss-Seidel', color = 'r', linestyle = '-')
-#        plt.title('Multigrid error vs iteration')
-#        plt.ylabel('Error')
-#        plt.xlabel('Number of smoother iterations')
-#        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-#        plt.show()
