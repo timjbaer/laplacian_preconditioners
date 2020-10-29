@@ -11,6 +11,8 @@ Resources:    Mina's ball computation notes, Caleb/Tim's slides, and Andoni et. 
 import numpy as np
 import scipy.sparse as sp
 
+import min_plus_sr
+
 def _closest_b(A,b):
     """ Given matrix where ith row contains neighbors, calculate the closest
         b of them and save into the ith row of another matrix
@@ -51,22 +53,22 @@ def ball(A,b):
     
     Returns
     ----------
-    N : np.ndarray
+    B : np.ndarray
         Matrix where the ith row contains ith vertex's closest <=b vertices
     """
-    print("A ->\n{}".format(A.todense()))
+
+    # print("A ->\n{}".format(A.todense()))
     n = A.shape[0]
 
-    # Compute b closest neighbors
-    L = _closest_b(A,b)
-
-    # Run truncated path doubling
     logn = int( np.ceil(np.log(n)/np.log(2)) )
-    print("L ->\n{}".format(L.todense()))
-    return L
 
-    for i in range(logn):
-        L_next = L@L.T # <- min-plus(L,L.T)
+    # Run path doubling
+    B = A.copy()
+    for itr in range(logn):
+        # B = B @ B.T # <- min-plus(B,B.T)
+        B = min_plus_sr.matpow2(B)
 
-        L = _closest_b(L_next,b)
-        print("L ->\n{}".format(L.todense()))
+    B = _closest_b(B, b)
+    # print("B ->\n{}".format(B.todense()))
+
+    return _closest_b(B, b)
