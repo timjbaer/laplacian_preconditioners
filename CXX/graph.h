@@ -12,9 +12,8 @@ using namespace CTF;
 typedef float REAL;
 #define MAX_REAL (INT_MAX/2)
 
-static Semiring<REAL> MAX_TIMES_SR(0,
+static Semiring<REAL> PLUS_TIMES_SR(0,
     [](REAL a, REAL b) {
-      //return std::max(a, b);
       return a + b;
     },
     MPI_SUM,
@@ -43,18 +42,35 @@ class Graph {
     Matrix<REAL>* adjacencyMatrix(World* world, bool sparse = false);
 };
 
-Matrix<REAL>* generate_kronecker(World* w, int order);
+uint64_t gen_graph(int scale, int edgef, uint64_t seed, uint64_t **edges);
 
-Matrix <REAL> * read_matrix(World  &     dw,
-                         int          n,
-                         const char * fpath,
-                         bool         remove_singlets,
-                         int *        n_nnz,
-                         int64_t      max_ewht = MAX_REAL);
-
-Matrix <REAL> gen_uniform_matrix(World & dw,
-                                int64_t n,
-                                double  sp,
-                                int64_t  max_ewht = MAX_REAL);
+Matrix<REAL> * preprocess_graph(int            n,                                         
+                               World &        dw,                                       
+                               Matrix<REAL> * A_pre,                                    
+                               bool           remove_singlets,                          
+                               int *          n_nnz,                                    
+                               int64_t        max_ewht=1);                              
+                                                                                      
+Matrix<REAL> * read_matrix(World  &     dw,                                              
+                           int          n,                                              
+                           const char * fpath,                                          
+                           bool         remove_singlets,                                
+                           int *        n_nnz,                                          
+                           int64_t      max_ewht=1);                                    
+                                                                                      
+Matrix<REAL> * gen_rmat_matrix(World  & dw,                                              
+                              int      scale,                                          
+                              int      ef,                                             
+                              uint64_t gseed,                                          
+                              bool     remove_singlets,                                
+                              int *    n_nnz,                                          
+                              int64_t  max_ewht=1);                                    
+                                                                                      
+Matrix<REAL> gen_uniform_matrix(World & dw,                                            
+                                int64_t n,                                            
+                                double  sp=.20,                                       
+                                int64_t  max_ewht=1);                                 
+                                                                                      
+Matrix<REAL>* generate_kronecker(World* w, int order);    
 
 #endif
