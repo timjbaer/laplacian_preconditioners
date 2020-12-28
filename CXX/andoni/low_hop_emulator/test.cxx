@@ -3,6 +3,8 @@
 #include "low_hop_emulator.h"
 #include "../../graph.h"
 
+#define BALL_SIZE 4
+
 char* getCmdOption(char ** begin,
                    char ** end,
                    const   std::string & option) {
@@ -87,6 +89,7 @@ int main(int argc, char** argv)
   char** input_str = argv;
   int critter_mode=0;
   int b;
+  int bvec=0;
 
   int rank;
   int np;
@@ -104,6 +107,10 @@ int main(int argc, char** argv)
       b = atoi(getCmdOption(input_str, input_str+in_num, "-b"));
       if (b < 0) b = 0;
     }
+    if (getCmdOption(input_str, input_str+in_num, "-bvec")){
+      bvec = atoi(getCmdOption(input_str, input_str+in_num, "-bvec"));
+      if (bvec < 0) bvec = 0;
+    } else bvec = 0;
     if (getCmdOption(input_str, input_str+in_num, "-critter_mode")){
       critter_mode = atoi(getCmdOption(input_str, input_str+in_num, "-critter_mode"));
       if (critter_mode < 0) critter_mode = 0;
@@ -117,11 +124,19 @@ int main(int argc, char** argv)
         A->print_matrix();
         if (!b)
           b = ceil(log2(A->nrow));
-        Matrix<REAL> * ball_ = ball(A, b);
-        if (w.rank == 0)
-          printf("ball:\n");
-        ball_->print_matrix();
-        delete ball_;
+        if (!bvec) {
+          Matrix<REAL> * ball_ = ball(A, b);
+          if (w.rank == 0)
+            printf("ball:\n");
+          ball_->print_matrix();
+          delete ball_;
+        } else {
+          Vector<bvector<BALL_SIZE>> * ball_ = ball_bvector<BALL_SIZE>(A);
+          if (w.rank == 0)
+            printf("ball:\n");
+          ball_->print();
+          delete ball_;
+        }
       }
 #ifdef CRITTER
       critter::stop(critter_mode);
