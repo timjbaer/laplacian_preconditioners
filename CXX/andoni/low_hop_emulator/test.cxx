@@ -1,5 +1,12 @@
 #include <ctime>
 
+#ifdef CRITTER
+#include "critter.h"
+#else
+#define TAU_FSTART(ARG)
+#define TAU_FSTOP(ARG)
+#endif
+
 #include "low_hop_emulator.h"
 #include "../../graph.h"
 
@@ -119,23 +126,41 @@ int main(int argc, char** argv)
       critter::start(critter_mode);
 #endif
       if (A != NULL) {
+#ifdef DEBUG
         if (w.rank == 0)
           printf("A:\n");
         A->print_matrix();
+#endif
         if (!b)
           b = ceil(log2(A->nrow));
         if (!bvec) {
+          TAU_FSTART(ball via matmat);
+          double stime = MPI_Wtime();
           Matrix<REAL> * ball_ = ball(A, b);
+#ifdef DEBUG
           if (w.rank == 0)
             printf("ball:\n");
           ball_->print_matrix();
+#endif
           delete ball_;
+          double etime = MPI_Wtime();
+          TAU_FSTOP(ball via matmat);
+          if (w.rank == 0)
+            printf("ball via matmat done in %1.2lf\n", etime - stime);
         } else {
+          TAU_FSTART(ball via matvec);
+          double stime = MPI_Wtime();
           Vector<bvector<BALL_SIZE>> * ball_ = ball_bvector<BALL_SIZE>(A);
+#ifdef DEBUG
           if (w.rank == 0)
             printf("ball:\n");
           ball_->print();
+#endif
           delete ball_;
+          double etime = MPI_Wtime();
+          TAU_FSTOP(ball via matvec);
+          if (w.rank == 0)
+            printf("ball via matvec done in %1.2lf\n", etime - stime);
         }
       }
 #ifdef CRITTER
