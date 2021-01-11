@@ -10,7 +10,6 @@
 #include "low_hop_emulator.h"
 #include "../../graph.h"
 
-#define BALL_SIZE 4
 
 char* getCmdOption(char ** begin,
                    char ** end,
@@ -136,13 +135,13 @@ int main(int argc, char** argv)
         if (!bvec) {
           TAU_FSTART(ball via matmat);
           double stime = MPI_Wtime();
-          Matrix<REAL> * ball_ = ball(A, b);
+          Matrix<REAL> * ball = ball_matmat(A, b);
 #ifdef DEBUG
           if (w.rank == 0)
             printf("ball:\n");
-          ball_->print_matrix();
+          ball->print_matrix();
 #endif
-          delete ball_;
+          delete ball;
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matmat);
           if (w.rank == 0)
@@ -150,13 +149,13 @@ int main(int argc, char** argv)
         } else {
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
-          Vector<bvector<BALL_SIZE>> * ball_ = ball_bvector<BALL_SIZE>(A);
+          Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A);
 #ifdef DEBUG
           if (w.rank == 0)
             printf("ball:\n");
-          ball_->print();
+          ball->print();
 #endif
-          delete ball_;
+          delete ball;
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matvec);
           if (w.rank == 0)
