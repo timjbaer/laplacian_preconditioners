@@ -17,5 +17,8 @@ graph.o: ../../graph.h ../../graph.cxx ../../graph_io.h
 test: test.cxx low_hop_emulator.o bourgain.o ball.o graph.o $(CTFDIR)
 	$(CXX) $(CXXFLAGS) -o test test.cxx low_hop_emulator.o bourgain.o ball.o graph.o $(INCLUDES) $(LIB_PATH) $(LIBS)
 
+debug: test.cxx low_hop_emulator.o bourgain.o ball.o graph.o $(CTFDIR)
+	$(CXX) $(CXXFLAGS) -DDEBUG -o debug test.cxx low_hop_emulator.o bourgain.o ball.o graph.o $(INCLUDES) $(LIB_PATH) $(LIBS)
+
 clean:
-	rm -f *.o test
+	rm -f *.o test debug
