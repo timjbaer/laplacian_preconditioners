@@ -22,6 +22,18 @@ static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
       return a + b;
     });
 
+struct ball_t {
+  int n;
+  int b;
+  Pair<REAL> closest_neighbors[]; // contiguous, flattened 2D array
+};
+
+void ball_red(ball_t const * x,
+              ball_t * y,
+              int nitems);
+
+Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b);
+
 struct bpair {
   int col;
   int dist;
@@ -174,8 +186,6 @@ Monoid< bvector<b> > get_bvector_monoid() {
 
   return m;
 }
-
-Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b);
 
 template<int b>
 Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A) {

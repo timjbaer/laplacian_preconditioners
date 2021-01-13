@@ -4,12 +4,44 @@ MPI_Datatype MPI_PAIR;
 MPI_Datatype MPI_BALL;
 MPI_Op oball;
 
-struct ball_t {
-  int n;
-  int b;
-  Pair<REAL> closest_neighbors[]; // contiguous, flattened 2D array
-};
- 
+int search(REAL target, const Pair<REAL> * y, int l, int r) { // TODO: implement binary search
+  int n = r - l;
+  for (int i = 0; i < n; ++i) {
+    if (target < y[i].d) {
+      return i;
+    }
+  }
+  return n;
+}
+
+// assume elements of x \cup y are distinct (see perturb())
+Pair<REAL> * merge(Pair<REAL> const * x,
+                   Pair<REAL> * y,
+                   int b) {
+  int idx[2*b];
+  Pair<REAL> * y_prev = (Pair<REAL> *) malloc(b * sizeof(Pair<REAL>));
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int i = 0; i < b; ++i) {
+    idx[i] = i + search(x[i].d, y, 0, b);
+    idx[i+b] = i + search(y[i].d, x, 0, b);
+    y_prev[i] = y[i];
+  }
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int i = 0; i < 2*b; ++i) {
+    if (idx[i] < b) {
+      if (i < b) {
+        y[idx[i]] = x[i];
+      } else {
+        y[idx[i]] = y_prev[i-b];
+      }
+    }
+  }
+}
+
 void ball_red(ball_t const * x,
               ball_t * y,
               int nitems) {
@@ -18,47 +50,11 @@ void ball_red(ball_t const * x,
   assert(x->b == y->b);
   int n = x->n;
   int b = x->b;
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
   for (int vertex = 0; vertex < n; ++vertex) {
-    std::set<int> seen;
-    int i,j,k;
-    i = j = k = 0;
-    while (k < b && i < b && j < b) { // TODO: write as parallelizable for loop
-      if (x->closest_neighbors[vertex*b + i].k == -1) {
-        ++j;
-        ++k;
-      } else if (y->closest_neighbors[vertex*b + j].k == -1) {
-        y->closest_neighbors[k].k = x->closest_neighbors[i].k;
-        y->closest_neighbors[k].d = x->closest_neighbors[i].d;
-        ++i;
-        ++k;
-      } else if (x->closest_neighbors[vertex*b + i].d < y->closest_neighbors[vertex*b + j].d) {
-        if (seen.find(x->closest_neighbors[vertex*b + i].k % b) == seen.end()) { seen.insert(x->closest_neighbors[vertex*b + i].k % b); }
-        else { ++i; continue; }
-        y->closest_neighbors[vertex*b + k].k = x->closest_neighbors[vertex*b + i].k;
-        y->closest_neighbors[vertex*b + k].d = x->closest_neighbors[vertex*b + i].d;
-        ++i;
-        ++k;
-      } else {
-        if (seen.find(y->closest_neighbors[vertex*b + j].k % b) == seen.end()) { seen.insert(y->closest_neighbors[vertex*b + j].k % b); }
-        else { ++j; continue; }
-        ++j;
-        ++k;
-      }
-    }
-    if (j == b) {
-      while (k < b) {
-        if (seen.find(x->closest_neighbors[vertex*b + i].k % b) == seen.end()) { seen.insert(x->closest_neighbors[vertex*b + i].k % b); }
-        else { ++i; continue; }
-        y->closest_neighbors[vertex*b + k].k = x->closest_neighbors[vertex*b + i].k;
-        y->closest_neighbors[vertex*b + k].d = x->closest_neighbors[vertex*b + i].d;
-        ++i;
-        ++k;
-      }
-    }
-    std::sort(y->closest_neighbors + vertex*b, y->closest_neighbors + vertex*b + b,
-              [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
-                { return first.d < second.d; }
-              );  // TODO: sort on insert?
+    merge(x->closest_neighbors + vertex*b, y->closest_neighbors + vertex*b, b);
   }
 }
 
@@ -100,7 +96,6 @@ Matrix<REAL> * filter(Matrix<REAL> * A, int b) {
     REAL dist = A_loc_pairs[i].d;
     if (dist < ball->closest_neighbors[vertex*b + b-1].d) { // TODO: not efficient
       ball->closest_neighbors[vertex*b + b-1] = A_loc_pairs[i];
-      ball->closest_neighbors[vertex*b + b-1].d = A_loc_pairs[i].d;
       std::sort(ball->closest_neighbors + vertex*b, ball->closest_neighbors + vertex*b + b,
                 [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
                   { return first.d < second.d; }
@@ -114,13 +109,14 @@ Matrix<REAL> * filter(Matrix<REAL> * A, int b) {
       },
       1,
       &oball);
+
+  Matrix<REAL> * B = new Matrix<REAL>(n, n, A->symm, *(A->wrld), MIN_PLUS_SR);
+
   // CTF_int::CommData row_commdata = A->topo->dim_comm[A->edge_map[0].cdt];
   // row_commdata.activate(MPI_COMM_WORLD);
   // MPI_Comm row_comm = row_commdata.cm;
   // MPI_Allreduce(MPI_IN_PLACE, ball, 1, MPI_BALL, oball, row_comm);
   // row_commdata.allred(MPI_IN_PLACE, ball, 1, MPI_BALL, oball);
-
-  Matrix<REAL> * B = new Matrix<REAL>(n, n, A->symm, *(A->wrld), MIN_PLUS_SR);
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

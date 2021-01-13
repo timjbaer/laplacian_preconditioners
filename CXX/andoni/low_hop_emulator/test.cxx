@@ -30,6 +30,7 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   int ef;
   int prep;
   int k;
+  int seed;
 
   Matrix<REAL> * A = NULL;
   if (getCmdOption(input_str, input_str+in_num, "-k")) {
@@ -61,6 +62,11 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
     prep = atoll(getCmdOption(input_str, input_str+in_num, "-prep"));
     if (prep < 0) prep = 0;
   } else prep = 0;
+  if (getCmdOption(input_str, input_str+in_num, "-seed")){
+    seed = atoll(getCmdOption(input_str, input_str+in_num, "-seed"));
+    if (seed < 1) seed = 1;
+  } else seed = 1;
+  srand(seed);
 
   if (gfile != NULL){
     int n_nnz = 0;
@@ -87,6 +93,51 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
     }
   }
   return A;
+}
+
+void perturb(Matrix<REAL> * A) {
+  int64_t A_npairs;
+  Pair<REAL> * A_loc_pairs;
+  A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
+  for (int i = 0; i < A_npairs; ++i) {
+    if (A_loc_pairs[i].d != 0) {
+      A_loc_pairs[i].d += rand() / (REAL) RAND_MAX;
+    }
+  }
+  A->write(A_npairs, A_loc_pairs); 
+}
+
+void test_ball_red() { // run on one process
+  printf("testing test ball reduction\n");
+  int n = 1;
+  int b = 5;
+  ball_t * x = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
+  ball_t * y = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
+  x->n = n;
+  y->n = n;
+  x->b = b;
+  y->b = b;
+  for (int64_t i = 0; i < b; ++i) {
+    x->closest_neighbors[i].k = 2 * i;
+    y->closest_neighbors[i].k = 2 * i + 1;
+    x->closest_neighbors[i].d = 2 * i;
+    y->closest_neighbors[i].d = 2 * i + 1;
+  }
+  ball_red(x, y, 1);
+  int pass = 1;
+  for (int i = 0; i < b; ++i) {
+    printf("%f ", y->closest_neighbors[i].d);
+    if (y->closest_neighbors[i].d != i)
+      pass = 0;
+  }
+  printf("\n");
+  if (pass) {
+    printf("passed test ball reduction\n");
+  } else {
+    printf("failed test ball reduction\n");
+  }
+  free(x);
+  free(y);
 }
 
 int main(int argc, char** argv)
@@ -125,6 +176,7 @@ int main(int argc, char** argv)
       critter::start(critter_mode);
 #endif
       if (A != NULL) {
+        perturb(A);
 #ifdef DEBUG
         if (w.rank == 0)
           printf("A:\n");
