@@ -12,6 +12,19 @@ typedef float REAL;
 
 #define BALL_SIZE 4
 
+/***** filter b closest neighbors *****/
+struct ball_t {
+  int n;
+  int b;
+  Pair<REAL> closest_neighbors[]; // contiguous, flattened 2D array
+};
+
+void init_mpi(int n, int b);
+void destroy_mpi();
+
+ball_t * filter(Matrix<REAL> * A, int b);
+
+/***** matmat approach *****/
 static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
     [](REAL a, REAL b) {
       return std::min(a, b);
@@ -22,24 +35,20 @@ static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
       return a + b;
     });
 
-struct ball_t {
-  int n;
-  int b;
-  Pair<REAL> closest_neighbors[]; // contiguous, flattened 2D array
-};
-
-void ball_red(ball_t const * x,
-              ball_t * y,
-              int nitems);
-
 Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b);
 
-struct bpair {
-  int col;
-  int dist;
+/***** matvec approach *****/
+class bpair {
+  public:
+    int vertex;
+    REAL dist;
+
+    bpair() { vertex = -1; dist = MAX_REAL; } // addid
+    bpair(int vertex_, REAL dist_) { vertex = vertex_; dist = dist_; }
+    bpair(bpair const & other) { vertex = other.vertex; dist = other.dist; }
 };
 
-// Monoid<bpair> get_bpair_monoid();
+Monoid<bpair> get_bpair_monoid();
 
 template<int b>
 class bvector {
@@ -48,7 +57,7 @@ class bvector {
 
     bvector() { 
       for (int i = 0; i < b; ++i) {
-        closest_neighbors[i].col = -1;
+        closest_neighbors[i].vertex = -1;
         closest_neighbors[i].dist = MAX_REAL;
       }
     }
@@ -59,55 +68,70 @@ namespace CTF {
   inline void Set<bvector<BALL_SIZE>>::print(char const * a, FILE * fp) const {
     bvector<BALL_SIZE> * bvec = (bvector<BALL_SIZE>*)a;
     for (int i = 0; i < BALL_SIZE; ++i) {
-      fprintf(fp, "(%d %d)", bvec->closest_neighbors[i].col, bvec->closest_neighbors[i].dist);
+      fprintf(fp, "(%d %f)", bvec->closest_neighbors[i].vertex, bvec->closest_neighbors[i].dist);
     }
   }
 }
 
 template<int b>
-void bvector_red(bvector<b> const * x, // TODO: do n times
+// void bvector_red(bvector<b> const * x, // TODO: multithread
+bvector<b> bvector_red(bvector<b> const * x, // TODO: multithread
                  bvector<b> * y,
-                 int n){
-  std::set<int> cols;
-  int i,j,k;
-  i = j = k = 0;
-  while (k < b && i < b && j < b) { // TODO: write as parallelizable for loop
-    if (x->closest_neighbors[i].col == -1) {
-      ++j;
-      ++k;
-    } else if (y->closest_neighbors[j].col == -1) {
-      y->closest_neighbors[k].col = x->closest_neighbors[i].col;
-      y->closest_neighbors[k].dist = x->closest_neighbors[i].dist;
+                 int nitems){
+  assert(nitems == 1); // TODO: correct?
+  bvector<b> * y_prev = (bvector<b> *) malloc(sizeof(bvector<b>));
+  for (int i = 0; i < b; ++i) {
+    y_prev->closest_neighbors[i] = y->closest_neighbors[i];
+  }
+  std::set<int> seen;
+  int i = 0;
+  int j = 0;
+  int k = 0;
+  while (i < b && j < b) {
+    if (x->closest_neighbors[i].vertex == -1 || y_prev->closest_neighbors[j].vertex == -1) {
+      break;
+    }
+    if (x->closest_neighbors[i].dist < y_prev->closest_neighbors[j].dist) {
+      int vertex = x->closest_neighbors[i].vertex;
+      if (seen.find(vertex) == seen.end()) {
+        seen.insert(vertex);
+        y->closest_neighbors[k] = x->closest_neighbors[i];
+        ++k;
+      }
       ++i;
-      ++k;
-    }  else if (x->closest_neighbors[i].dist < y->closest_neighbors[j].dist) {
-      if (cols.find(x->closest_neighbors[i].col) != cols.end()) { cols.insert(x->closest_neighbors[i].col); }
-      else { ++i; continue; }
-      y->closest_neighbors[k].col = x->closest_neighbors[i].col;
-      y->closest_neighbors[k].dist = x->closest_neighbors[i].dist;
-      ++i;
-      ++k;
     } else {
-      if (cols.find(y->closest_neighbors[j].col) != cols.end()) { cols.insert(y->closest_neighbors[j].col); }
-      else { ++j; continue; }
+      int vertex = y_prev->closest_neighbors[j].vertex;
+      if (seen.find(vertex) == seen.end()) {
+        seen.insert(vertex);
+        y->closest_neighbors[k] = y_prev->closest_neighbors[j];
+        ++k;
+      }
       ++j;
-      ++k;
     }
   }
-  if (j == b) {
+  if (i == b || x->closest_neighbors[i].vertex == -1) {
     while (k < b) {
-      if (cols.find(x->closest_neighbors[i].col) != cols.end()) { cols.insert(x->closest_neighbors[i].col); }
-      else { ++i; continue; }
-      y->closest_neighbors[k].col = x->closest_neighbors[i].col;
-      y->closest_neighbors[k].dist = x->closest_neighbors[i].dist;
+      int vertex = y_prev->closest_neighbors[j].vertex;
+      if (vertex == -1 || seen.find(vertex) == seen.end()) {
+        seen.insert(vertex);
+        y->closest_neighbors[k] = y_prev->closest_neighbors[j];
+        ++k;
+      }
+      ++j;
+    }
+  } else if (j == b || y_prev->closest_neighbors[j].vertex == -1) {
+    while (k < b) {
+      int vertex = x->closest_neighbors[i].vertex;
+      if (vertex == -1 || seen.find(vertex) == seen.end()) {
+        seen.insert(vertex);
+        y->closest_neighbors[k] = x->closest_neighbors[i];
+        ++k;
+      }
       ++i;
-      ++k;
     }
   }
-  std::sort(y->closest_neighbors, y->closest_neighbors + b,
-            [](bpair const & first, bpair const & second) -> bool
-              { return first.dist < second.dist; }
-            );  // TODO: sort on insert?
+  free(y_prev);
+  return *y;
 }
 
 template<int b>
@@ -123,63 +147,10 @@ Monoid< bvector<b> > get_bvector_monoid() {
 
   Monoid< bvector<b> > m(bvector<b>(),
       [](bvector<b> x, bvector<b> y) {
-          bvector<b> z;
-          std::set<int> cols;
-          int i,j,k;
-          i = j = k = 0;
-          while (k < b && i < b && j < b) { // TODO: write as parallelizable for loop
-            if (x.closest_neighbors[i].col == -1) {
-              z.closest_neighbors[k].col = y.closest_neighbors[j].col;
-              z.closest_neighbors[k].dist = y.closest_neighbors[j].dist;
-              ++j;
-              ++k;
-            } else if (y.closest_neighbors[j].col == -1) {
-              z.closest_neighbors[k].col = x.closest_neighbors[i].col;
-              z.closest_neighbors[k].dist = x.closest_neighbors[i].dist;
-              ++i;
-              ++k;
-            } else if (x.closest_neighbors[i].dist < y.closest_neighbors[j].dist) {
-              if (cols.find(x.closest_neighbors[i].col) != cols.end()) { cols.insert(x.closest_neighbors[i].col); }
-              else { ++i; continue; }
-              z.closest_neighbors[k].col = x.closest_neighbors[i].col;
-              z.closest_neighbors[k].dist = x.closest_neighbors[i].dist;
-              ++i;
-              ++k;
-            } else {
-              if (cols.find(y.closest_neighbors[j].col) != cols.end()) { cols.insert(y.closest_neighbors[j].col); }
-              else { ++j; continue; }
-              z.closest_neighbors[k].col = y.closest_neighbors[j].col;
-              z.closest_neighbors[k].dist = y.closest_neighbors[j].dist;
-              ++j;
-              ++k;
-            }
-          }
-          if (i == b) {
-            while (k < b) {
-              assert(j < b); // FIXME: TODO: at first, every col is -1
-              // if (cols.find(y.closest_neighbors[j].col) != cols.end()) { cols.insert(y.closest_neighbors[j].col); }
-              // else { ++j; continue; }
-              z.closest_neighbors[k].col = y.closest_neighbors[j].col;
-              z.closest_neighbors[k].dist = y.closest_neighbors[j].dist;
-              ++j;
-              ++k;
-            }
-          } else if (j == b) {
-            while (k < b) {
-              assert(i < b);
-              // if (cols.find(x.closest_neighbors[i].col) != cols.end()) { cols.insert(x.closest_neighbors[i].col); }
-              // else { ++i; continue; }
-              z.closest_neighbors[k].col = x.closest_neighbors[i].col;
-              z.closest_neighbors[k].dist = x.closest_neighbors[i].dist;
-              ++i;
-              ++k;
-            }
-          }
-          std::sort(z.closest_neighbors, z.closest_neighbors + b,
-                    [](bpair const & first, bpair const & second) -> bool
-                      { return first.dist < second.dist; }
-                    ); // TODO: sort on insert?
-          return z;
+        // return bvector<b>();
+        // return x;
+        // return y;
+        return bvector_red<b>(&x, &y, 1);
       },
       obvector
       );
@@ -187,37 +158,74 @@ Monoid< bvector<b> > get_bvector_monoid() {
   return m;
 }
 
+ball_t * filter(Matrix<bpair> * A, int b);
+
 template<int b>
-Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A) {
+void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
+  int n = A->nrow;
+  ball_t * ball = filter(A, b);
+  Pair<bvector<b>> bvecs[n];
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int i = 0; i < n; ++i) {
+    bvecs[i].k = i;
+  }
+  int off[n];
+  memset(off, 0, n);
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int i = 0; i < n*b; ++i) {
+    Pair<REAL> pair = ball->closest_neighbors[i];
+    int vertex = pair.k / n;
+    if (pair.k != -1) {
+      bvecs[vertex].d.closest_neighbors[off[vertex]].vertex = pair.k % b;
+      bvecs[vertex].d.closest_neighbors[off[vertex]].dist = pair.d;
+    }
+  }
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int i = 0; i < n; ++i) {
+    std::sort(bvecs[i].d.closest_neighbors, bvecs[i].d.closest_neighbors + b,
+              [](bpair const & first, bpair const & second) -> bool
+                { return first.dist < second.dist; }
+              );
+  }
+  B->write(n, bvecs); 
+
+  free(ball);
+}
+
+template<int b>
+Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
-  Vector<bvector<b>> * B = new Vector<bvector<b>>(n,*w,bvector_monoid);
-  // int64_t A_npairs;
-  // Pair<int> * A_loc_pairs;
-  // A->get_local_pairs(&A_npair, &A_loc_pairs, true);
-  // for (int64_t i = 0; i < A_npairs; ++i) { // collect smallest b edges for each vertex on processor
-  //     
-  // }
-  // // reduce smallest b edges on each so each pair ha
+  Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
+  init_mpi(n, b);
+  init_closest_edges(A, B);
 
-
-  // Transform<REAL,bvector<b>> relax([](REAL w, bvector<b> bvec){
-  Bivar_Function<REAL,bvector<b>,bvector<b>> relax([](REAL w, bvector<b> bvec){
+  Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
     bvector<b> ret = bvec;
     for (int i = 0; i < b; ++i) {
-      if (ret.closest_neighbors[i].dist == MAX_REAL) {
-        ret.closest_neighbors[i].dist = w;
+      if (ret.closest_neighbors[i].vertex == -1) {
+        ret.closest_neighbors[i] = bvec.closest_neighbors[i];
       } else {
-        ret.closest_neighbors[i].dist += w;
+        ret.closest_neighbors[i].vertex = bvec.closest_neighbors[i].vertex;
+        ret.closest_neighbors[i].dist = e.dist + bvec.closest_neighbors[i].dist;
       }
     }
     return ret;
   });
 
-  for (int i = 0; i < b; ++i) {
+  // for (int i = 0; i < b; ++i) {
+  for (int i = 0; i < 1; ++i) {
     (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
   }
+
+  destroy_mpi();
   return B;
 }
 

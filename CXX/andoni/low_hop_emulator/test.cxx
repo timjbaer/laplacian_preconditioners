@@ -100,45 +100,96 @@ void perturb(Matrix<REAL> * A) {
   Pair<REAL> * A_loc_pairs;
   A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
   for (int i = 0; i < A_npairs; ++i) {
-    if (A_loc_pairs[i].d != 0) {
+    if (A_loc_pairs[i].d != 0) { // TODO: should be unnecessary if get_local_pairs only returns nonzeros
       A_loc_pairs[i].d += rand() / (REAL) RAND_MAX;
     }
   }
   A->write(A_npairs, A_loc_pairs); 
 }
 
-void test_ball_red() { // run on one process
-  printf("testing test ball reduction\n");
-  int n = 1;
-  int b = 5;
-  ball_t * x = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
-  ball_t * y = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
-  x->n = n;
-  y->n = n;
-  x->b = b;
-  y->b = b;
-  for (int64_t i = 0; i < b; ++i) {
-    x->closest_neighbors[i].k = 2 * i;
-    y->closest_neighbors[i].k = 2 * i + 1;
-    x->closest_neighbors[i].d = 2 * i;
-    y->closest_neighbors[i].d = 2 * i + 1;
+Matrix<bpair> * real_to_bpair(Matrix<REAL> * A) {
+  int n = A->nrow;
+  const static Monoid<bpair> MIN_BPAIR = get_bpair_monoid();
+  Matrix<bpair> * B = new Matrix<bpair>(n, n, *(A->wrld), MIN_BPAIR);
+  int64_t npairs;
+  Pair<REAL> * A_loc_pairs;
+  A->get_local_pairs(&npairs, &A_loc_pairs, true);
+  Pair<bpair> B_loc_pairs[npairs];
+  for (int i = 0; i < npairs; ++i) {
+    B_loc_pairs[i].k = A_loc_pairs[i].k;
+    B_loc_pairs[i].d.vertex = A_loc_pairs[i].k % n;
+    B_loc_pairs[i].d.dist = A_loc_pairs[i].d;
   }
-  ball_red(x, y, 1);
-  int pass = 1;
-  for (int i = 0; i < b; ++i) {
-    printf("%f ", y->closest_neighbors[i].d);
-    if (y->closest_neighbors[i].d != i)
-      pass = 0;
-  }
-  printf("\n");
-  if (pass) {
-    printf("passed test ball reduction\n");
-  } else {
-    printf("failed test ball reduction\n");
-  }
-  free(x);
-  free(y);
+  B->write(npairs, B_loc_pairs);
+  delete [] A_loc_pairs;
+  return B;
 }
+
+// void test_ball_red() { // run on one process
+//   printf("test ball reduction\n");
+//   int n = 1;
+//   int b = 5;
+//   ball_t * x = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
+//   ball_t * y = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
+//   x->n = n;
+//   y->n = n;
+//   x->b = b;
+//   y->b = b;
+//   for (int64_t i = 0; i < b; ++i) {
+//     x->closest_neighbors[i].k = 2 * i;
+//     y->closest_neighbors[i].k = 2 * i + 1;
+//     x->closest_neighbors[i].d = 2 * i;
+//     y->closest_neighbors[i].d = 2 * i + 1;
+//   }
+//   ball_red(x, y, 1);
+//   int pass = 1;
+//   for (int i = 0; i < b; ++i) {
+//     printf("%f ", y->closest_neighbors[i].d);
+//     if (y->closest_neighbors[i].d != i)
+//       pass = 0;
+//   }
+//   printf("\n");
+//   if (pass) {
+//     printf("passed test ball reduction\n");
+//   } else {
+//     printf("failed test ball reduction\n");
+//   }
+//   free(x);
+//   free(y);
+// }
+
+// void test_bvector_red() { // run on one process
+//   printf("test bvector reduction\n");
+//   bvector<10> * x = (bvector<10> *) malloc(sizeof(bvector<10>));
+//   bvector<10> * y = (bvector<10> *) malloc(sizeof(bvector<10>));
+//   for (int64_t i = 0; i < 5; ++i) {
+//     x->closest_neighbors[i].vertex = 2 * i;
+//     y->closest_neighbors[i].vertex = 2 * i + 1;
+//     x->closest_neighbors[i].dist = 2 * i;
+//     y->closest_neighbors[i].dist = 2 * i + 1;
+//   }
+//   for (int i = 0; i < 5; ++i) { // duplicate vertices
+//     y->closest_neighbors[5+i].vertex = 2 * i;
+//     x->closest_neighbors[5+i].vertex = 2 * i + 1;
+//     y->closest_neighbors[5+i].dist = 2 * i + 1;
+//     x->closest_neighbors[5+i].dist = 2 * i + 1 + 1;
+//   }
+//   bvector_red(x, y, 1);
+//   int pass = 1;
+//   for (int i = 0; i < 10; ++i) {
+//     printf("%f ", y->closest_neighbors[i].dist);
+//     if (y->closest_neighbors[i].dist != i)
+//       pass = 0;
+//   }
+//   printf("\n");
+//   if (pass) {
+//     printf("passed test ball reduction\n");
+//   } else {
+//     printf("failed test ball reduction\n");
+//   }
+//   free(x);
+//   free(y);
+// }
 
 int main(int argc, char** argv)
 {
@@ -201,13 +252,15 @@ int main(int argc, char** argv)
         } else {
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
-          Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A);
+          Matrix<bpair> * B = real_to_bpair(A);
+          Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(B);
 #ifdef DEBUG
           if (w.rank == 0)
             printf("ball:\n");
           ball->print();
 #endif
           delete ball;
+          delete B;
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matvec);
           if (w.rank == 0)
