@@ -24,6 +24,19 @@ void destroy_mpi();
 
 ball_t * filter(Matrix<REAL> * A, int b);
 
+class bpair {
+  public:
+    int vertex;
+    REAL dist;
+
+    bpair() { vertex = -1; dist = MAX_REAL; } // addid
+    bpair(int vertex_, REAL dist_) { vertex = vertex_; dist = dist_; }
+    bpair(bpair const & other) { vertex = other.vertex; dist = other.dist; }
+};
+Monoid<bpair> get_bpair_monoid();
+
+ball_t * filter(Matrix<bpair> * A, int b);
+
 /***** matmat approach *****/
 static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
     [](REAL a, REAL b) {
@@ -38,18 +51,6 @@ static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
 Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b);
 
 /***** matvec approach *****/
-class bpair {
-  public:
-    int vertex;
-    REAL dist;
-
-    bpair() { vertex = -1; dist = MAX_REAL; } // addid
-    bpair(int vertex_, REAL dist_) { vertex = vertex_; dist = dist_; }
-    bpair(bpair const & other) { vertex = other.vertex; dist = other.dist; }
-};
-
-Monoid<bpair> get_bpair_monoid();
-
 template<int b>
 class bvector {
   public: 
@@ -158,40 +159,39 @@ Monoid< bvector<b> > get_bvector_monoid() {
   return m;
 }
 
-ball_t * filter(Matrix<bpair> * A, int b);
-
 template<int b>
 void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
   int n = A->nrow;
   ball_t * ball = filter(A, b);
+  printf("ball:\n");
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < b; ++j) {
+      printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
+    }
+    printf("\n");
+  }
   Pair<bvector<b>> bvecs[n];
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
   for (int i = 0; i < n; ++i) {
     bvecs[i].k = i;
-  }
-  int off[n];
-  memset(off, 0, n);
-#ifdef _OPENMP
-  #pragma omp parallel for
-#endif
-  for (int i = 0; i < n*b; ++i) {
-    Pair<REAL> pair = ball->closest_neighbors[i];
-    int vertex = pair.k / n;
-    if (pair.k != -1) {
-      bvecs[vertex].d.closest_neighbors[off[vertex]].vertex = pair.k % b;
-      bvecs[vertex].d.closest_neighbors[off[vertex]].dist = pair.d;
+    for (int j = 0; j < b; ++j) {
+      bvecs[i].d.closest_neighbors[j].vertex = -1;
+      bvecs[i].d.closest_neighbors[j].dist = MAX_REAL;
     }
   }
-#ifdef _OPENMP
-  #pragma omp parallel for
-#endif
-  for (int i = 0; i < n; ++i) {
-    std::sort(bvecs[i].d.closest_neighbors, bvecs[i].d.closest_neighbors + b,
-              [](bpair const & first, bpair const & second) -> bool
-                { return first.dist < second.dist; }
-              );
+  int off[n];
+  memset(off, 0, n*sizeof(int));
+  for (int i = 0; i < n*b; ++i) { // fills bvecs in sorted order
+    Pair<REAL> pair = ball->closest_neighbors[i];
+    int vertex = pair.k % n;
+    if (pair.k != -1) {
+      bvecs[vertex].d.closest_neighbors[off[vertex]].vertex = pair.k / n;
+      bvecs[vertex].d.closest_neighbors[off[vertex]].dist = pair.d;
+      ++off[vertex];
+      assert(off[vertex] <= b);
+    }
   }
   B->write(n, bvecs); 
 
@@ -206,6 +206,8 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_mpi(n, b);
   init_closest_edges(A, B);
+  printf("B with closest edges\n");
+  B->print();
 
   Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
     bvector<b> ret = bvec;

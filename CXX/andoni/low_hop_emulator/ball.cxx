@@ -95,12 +95,66 @@ ball_t * filter(Matrix<REAL> * A, int b) {
   MPI_Allreduce(MPI_IN_PLACE, ball, 1, MPI_BALL, oball, row_comm);
 
   delete [] A_loc_pairs;
-  delete A;
 
   return ball;
 }
 
-ball_t * filter(Matrix<bpair> * A, int b) { return NULL; }
+ball_t * filter(Matrix<bpair> * A, int b) {
+  // assert(A->symm != SY);
+  // assert(A->edge_map[0].type == CTF_int::PHYSICAL_MAP);
+  int n = A->nrow;
+  if (!is_init_mpi) {
+    init_mpi(n, b);
+    is_init_mpi = true;
+  }
+  int64_t A_npairs;
+  Pair<bpair> * A_loc_pairs;
+  A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
+  ball_t * ball = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
+  ball->n = n;
+  ball->b = b;
+  for (int64_t i = 0; i < n; ++i) {
+    for (int64_t j = 0; j < b; ++j) {
+      ball->closest_neighbors[i*b + j].k = -1; // FIXME: issue if a vertex has less than b neighbors
+      ball->closest_neighbors[i*b + j].d = MAX_REAL;
+    }
+  }
+  for (int64_t i = 0; i < A_npairs; ++i) {
+    int vertex = A_loc_pairs[i].d.vertex;
+    REAL dist = A_loc_pairs[i].d.dist;
+    if (dist < ball->closest_neighbors[vertex*b + b-1].d) { // TODO: not efficient
+      ball->closest_neighbors[vertex*b + b-1].k = A_loc_pairs[i].k;
+      ball->closest_neighbors[vertex*b + b-1].d = A_loc_pairs[i].d.dist;
+      std::sort(ball->closest_neighbors + vertex*b, ball->closest_neighbors + vertex*b + b,
+                [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
+                  { return first.d < second.d; }
+                );
+    }
+  }
+
+  // CTF_int::CommData row_commdata = A->topo->dim_comm[A->edge_map[0].cdt];
+  // row_commdata.activate(MPI_COMM_WORLD);
+  // MPI_Comm row_comm = row_commdata.cm;
+  // MPI_Allreduce(MPI_IN_PLACE, ball, 1, MPI_BALL, oball, row_comm);
+  // row_commdata.allred(MPI_IN_PLACE, ball, 1, MPI_BALL, oball);
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  char * idx = NULL;
+  Idx_Partition prl;
+  Idx_Partition blk;
+  A->get_distribution(&idx, prl, blk);
+  int color = 1; // TODO: communicate across rows
+
+  MPI_Comm row_comm;
+  MPI_Comm_split(MPI_COMM_WORLD, color, rank, &row_comm);
+  MPI_Allreduce(MPI_IN_PLACE, ball, 1, MPI_BALL, oball, row_comm);
+
+  delete [] A_loc_pairs;
+
+  return ball;
+}
+
 
 /***** matmat approach *****/
 int search(REAL target, const Pair<REAL> * y, int l, int r) { // TODO: implement binary search
@@ -164,6 +218,7 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min
   // }
   Matrix<REAL> * C = new Matrix<REAL>(n, n, B->symm, *(B->wrld), MIN_PLUS_SR);
   ball_t * ball = filter(B, b);
+  delete B;
   C->write(n*b, ball->closest_neighbors);
 
   destroy_mpi();
