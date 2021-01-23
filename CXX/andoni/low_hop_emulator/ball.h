@@ -163,13 +163,13 @@ template<int b>
 void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
   int n = A->nrow;
   ball_t * ball = filter(A, b);
-  printf("ball:\n");
-  for (int i = 0; i < n; ++i) {
-    for (int j = 0; j < b; ++j) {
-      printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
-    }
-    printf("\n");
-  }
+  // printf("ball:\n");
+  // for (int i = 0; i < n; ++i) {
+  //   for (int j = 0; j < b; ++j) {
+  //     printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
+  //   }
+  //   printf("\n");
+  // }
   Pair<bvector<b>> bvecs[n];
 #ifdef _OPENMP
   #pragma omp parallel for
@@ -222,8 +222,8 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
     return ret;
   });
 
-  // for (int i = 0; i < b; ++i) {
-  for (int i = 0; i < 1; ++i) {
+  for (int i = 0; i < b; ++i) {
+  // for (int i = 0; i < 1; ++i) {
     (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
   }
 

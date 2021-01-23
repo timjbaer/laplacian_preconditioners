@@ -191,6 +191,40 @@ Matrix<bpair> * real_to_bpair(Matrix<REAL> * A) {
 //   free(y);
 // }
 
+ball_t * correct_ball(Matrix<REAL> * A, int b) {
+  Matrix<REAL> * B = new Matrix<REAL>(*A);
+  for (int i = 0; i < log2(B->nrow); ++i) { // TODO: clear B instead of reallocating it
+    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+  }
+  ball_t * correct = filter(B, b);
+  delete B;
+  return correct;
+}
+
+void compare_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) { // TODO: assumes B has at most b nonzeros per row
+  int n = A->nrow;
+  ball_t * ball = filter(B, b);
+  ball_t * correct = correct_ball(A, b);
+  assert(ball->n == correct->n);
+  assert(ball->b == correct->b);
+  int diff = 0;
+  if (A->wrld->rank == 0) {
+    for (int i = 0; i < n*b; ++i) {
+      if (ball->closest_neighbors[i].k != correct->closest_neighbors[i].k
+       || ball->closest_neighbors[i].d != correct->closest_neighbors[i].d) {
+        ++diff;
+      }
+    }
+    if (!diff) {
+      printf("passed test ball reduction\n");
+    } else {
+      printf("failed test ball reduction, differ by %d\n", diff);
+    }
+  }
+  free(correct);
+  free(ball);
+}
+
 int main(int argc, char** argv)
 {
   int const in_num = argc;
@@ -239,14 +273,15 @@ int main(int argc, char** argv)
           TAU_FSTART(ball via matmat);
           double stime = MPI_Wtime();
           Matrix<REAL> * ball = ball_matmat(A, b);
+          double etime = MPI_Wtime();
+          TAU_FSTOP(ball via matmat);
 #ifdef DEBUG
           if (w.rank == 0)
             printf("ball:\n");
           ball->print_matrix();
+          compare_ball(A, B, b);
 #endif
           delete ball;
-          double etime = MPI_Wtime();
-          TAU_FSTOP(ball via matmat);
           if (w.rank == 0)
             printf("ball via matmat done in %1.2lf\n", etime - stime);
         } else {
@@ -254,6 +289,8 @@ int main(int argc, char** argv)
           double stime = MPI_Wtime();
           Matrix<bpair> * B = real_to_bpair(A);
           Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(B);
+          double etime = MPI_Wtime();
+          TAU_FSTOP(ball via matvec);
 #ifdef DEBUG
           if (w.rank == 0)
             printf("ball:\n");
@@ -261,8 +298,6 @@ int main(int argc, char** argv)
 #endif
           delete ball;
           delete B;
-          double etime = MPI_Wtime();
-          TAU_FSTOP(ball via matvec);
           if (w.rank == 0)
             printf("ball via matvec done in %1.2lf\n", etime - stime);
         }

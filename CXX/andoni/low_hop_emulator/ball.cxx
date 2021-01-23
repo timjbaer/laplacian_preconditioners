@@ -212,17 +212,19 @@ void ball_red(ball_t const * x,
 
 Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min, +) semiring
   int n = A->nrow;
+  int symm = A->symm;
+  World wrld = *(A->wrld);
   Matrix<REAL> * B = new Matrix<REAL>(*A);
-  // for (int i = 0; i < log2(B->nrow); ++i) {
-  //   (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
-  // }
-  Matrix<REAL> * C = new Matrix<REAL>(n, n, B->symm, *(B->wrld), MIN_PLUS_SR);
-  ball_t * ball = filter(B, b);
-  delete B;
-  C->write(n*b, ball->closest_neighbors);
+  for (int i = 0; i < log2(B->nrow); ++i) { // TODO: clear B instead of reallocating it
+    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+    ball_t * ball = filter(B, b);
+    delete B;
+    B = new Matrix<REAL>(n, n, symm, wrld, MIN_PLUS_SR);
+    B->write(n*b, ball->closest_neighbors);
+  }
 
   destroy_mpi();
-  return C;
+  return B;
 }
 
 /***** matvec approach *****/
