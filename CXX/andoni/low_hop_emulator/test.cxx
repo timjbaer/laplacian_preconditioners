@@ -251,10 +251,16 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   ball_t * ball = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
   ball->n = n;
   ball->b = b;
+  for (int64_t i = 0; i < n; ++i) {
+    for (int64_t j = 0; j < b; ++j) {
+      ball->closest_neighbors[i*b + j].k = -1; // FIXME: issue if a vertex has less than b neighbors
+      ball->closest_neighbors[i*b + j].d = MAX_REAL;
+    }
+  }
   for (int64_t i = 0; i < B_npairs; ++i) {
     int vertex = B_loc_pairs[i].k;
     for (int j = 0; j < b; ++j) {
-      ball->closest_neighbors[vertex*b + j].k = B_loc_pairs[i].d.closest_neighbors[j].vertex; // TODO: correct?
+      ball->closest_neighbors[vertex*b + j].k = B_loc_pairs[i].d.closest_neighbors[j].vertex;
       ball->closest_neighbors[vertex*b + j].d = B_loc_pairs[i].d.closest_neighbors[j].dist;
     }
   }
@@ -264,7 +270,7 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   char * idx = NULL;
   Idx_Partition prl;
   Idx_Partition blk;
-  A->get_distribution(&idx, prl, blk);
+  B->get_distribution(&idx, prl, blk);
   int color = 1; // TODO: communicate across rows
 
   MPI_Comm row_comm;
@@ -279,23 +285,23 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   assert(ball->b == correct_ball->b);
   int64_t diff = 0;
   if (A->wrld->rank == 0) {
-// #ifdef DEBUG
-//     printf("ball:\n");
-//     for (int i = 0; i < n; ++i) {
-//       for (int j = 0; j < b; ++j) {
-//         printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
-//       }
-//       printf("\n");
-//     }
-// 
-//     printf("correct ball:\n");
-//     for (int i = 0; i < n; ++i) {
-//       for (int j = 0; j < b; ++j) {
-//         printf("(%d %f) ", correct_ball->closest_neighbors[i*b + j].k / n, correct_ball->closest_neighbors[i*b + j].d); // TODO: refactor filter to output (vertex, dist) not (key, dist)
-//       }
-//       printf("\n");
-//     }
-// #endif
+#ifdef DEBUG
+    printf("ball:\n");
+    for (int i = 0; i < n; ++i) {
+      for (int j = 0; j < b; ++j) {
+        printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
+      }
+      printf("\n");
+    }
+
+    printf("correct ball:\n");
+    for (int i = 0; i < n; ++i) {
+      for (int j = 0; j < b; ++j) {
+        printf("(%d %f) ", correct_ball->closest_neighbors[i*b + j].k / n, correct_ball->closest_neighbors[i*b + j].d); // TODO: refactor filter to output (vertex, dist) not (key, dist)
+      }
+      printf("\n");
+    }
+#endif
 
     for (int i = 0; i < n; ++i) {
       for (int j = 0; j < b; ++j) {
