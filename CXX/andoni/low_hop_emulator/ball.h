@@ -13,6 +13,10 @@ typedef float REAL;
 #define BALL_SIZE 4
 
 /***** filter b closest neighbors *****/
+extern MPI_Datatype MPI_PAIR;
+extern MPI_Datatype MPI_BALL;
+extern MPI_Op oball;
+
 struct ball_t {
   int n;
   int b;
@@ -205,8 +209,6 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_closest_edges(A, B);
-  printf("B with closest edges\n");
-  B->print();
 
   Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
     bvector<b> ret = bvec;

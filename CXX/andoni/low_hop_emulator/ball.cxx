@@ -44,6 +44,7 @@ void destroy_mpi() {
   MPI_Type_free(&MPI_PAIR);
 }
 
+// TODO: add function (without sorting) to convert Matrix<REAL> * to ball_t *
 ball_t * filter(Matrix<REAL> * A, int b) {
   // assert(A->symm != SY);
   // assert(A->edge_map[0].type == CTF_int::PHYSICAL_MAP);
@@ -61,7 +62,7 @@ ball_t * filter(Matrix<REAL> * A, int b) {
     }
   }
   for (int64_t i = 0; i < A_npairs; ++i) {
-    int vertex = A_loc_pairs[i].k / n;
+    int vertex = A_loc_pairs[i].k % n;
     REAL dist = A_loc_pairs[i].d;
     if (dist < ball->closest_neighbors[vertex*b + b-1].d) { // TODO: not efficient
       ball->closest_neighbors[vertex*b + b-1] = A_loc_pairs[i];

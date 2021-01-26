@@ -243,17 +243,42 @@ int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
   return s;
 }
 
-// void compare_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) { // TODO: assumes B has at most b nonzeros per row
-//   int n = A->nrow;
-//   printf("print B (important)\n");
-//   B->print_matrix();
-//   exit(1);
-//   ball_t * ball = filter(B, b);
-//   ball_t * correct = correct_ball(A, b);
-//   assert(ball->n == correct->n);
-//   assert(ball->b == correct->b);
-//   int diff = 0;
-//   if (A->wrld->rank == 0) {
+int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
+  int n = A->nrow;
+  int64_t B_npairs;
+  Pair<bvector<BALL_SIZE>> * B_loc_pairs;
+  B->get_local_pairs(&B_npairs, &B_loc_pairs, true);
+  ball_t * ball = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
+  ball->n = n;
+  ball->b = b;
+  for (int64_t i = 0; i < B_npairs; ++i) {
+    int vertex = B_loc_pairs[i].k;
+    for (int j = 0; j < b; ++j) {
+      ball->closest_neighbors[vertex*b + j].k = B_loc_pairs[i].d.closest_neighbors[j].vertex; // TODO: correct?
+      ball->closest_neighbors[vertex*b + j].d = B_loc_pairs[i].d.closest_neighbors[j].dist;
+    }
+  }
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  char * idx = NULL;
+  Idx_Partition prl;
+  Idx_Partition blk;
+  A->get_distribution(&idx, prl, blk);
+  int color = 1; // TODO: communicate across rows
+
+  MPI_Comm row_comm;
+  MPI_Comm_split(MPI_COMM_WORLD, color, rank, &row_comm);
+  MPI_Allreduce(MPI_IN_PLACE, ball, 1, MPI_BALL, oball, row_comm);
+
+  delete [] B_loc_pairs;
+
+  Matrix<REAL> * correct = correct_ball(A, b);
+  ball_t * correct_ball = filter(correct, b); // TODO: see TODO next to filter
+  assert(ball->n == correct_ball->n);
+  assert(ball->b == correct_ball->b);
+  int64_t diff = 0;
+  if (A->wrld->rank == 0) {
 // #ifdef DEBUG
 //     printf("ball:\n");
 //     for (int i = 0; i < n; ++i) {
@@ -266,29 +291,25 @@ int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
 //     printf("correct ball:\n");
 //     for (int i = 0; i < n; ++i) {
 //       for (int j = 0; j < b; ++j) {
-//         printf("(%d %f) ", correct->closest_neighbors[i*b + j].k, correct->closest_neighbors[i*b + j].d);
+//         printf("(%d %f) ", correct_ball->closest_neighbors[i*b + j].k / n, correct_ball->closest_neighbors[i*b + j].d); // TODO: refactor filter to output (vertex, dist) not (key, dist)
 //       }
 //       printf("\n");
 //     }
 // #endif
-// 
-//     for (int i = 0; i < n; ++i) {
-//       for (int j = 0; j < b; ++j) {
-//         if (ball->closest_neighbors[i*b + j].k != correct->closest_neighbors[i*b + j].k
-//          || ball->closest_neighbors[i*b + j].d != correct->closest_neighbors[i*b + j].d) {
-//           ++diff;
-//         }
-//       }
-//     }
-//     if (!diff) {
-//       printf("passed test ball reduction\n");
-//     } else {
-//       printf("failed test ball reduction, differ by %d\n", diff);
-//     }
-//   }
-//   free(correct);
-//   free(ball);
-// }
+
+    for (int i = 0; i < n; ++i) {
+      for (int j = 0; j < b; ++j) {
+        if (ball->closest_neighbors[i*b + j].k != correct_ball->closest_neighbors[i*b + j].k / n // TODO: refactor filter to output (vertex, dist) not (key, dist)
+         || fabs(ball->closest_neighbors[i*b + j].d - correct_ball->closest_neighbors[i*b + j].d) >= EPSILON) {
+          ++diff;
+        }
+      }
+    }
+  }
+  free(correct);
+  free(ball);
+  return diff;
+}
 
 int main(int argc, char** argv)
 {
@@ -364,6 +385,9 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matvec):\n");
           ball->print();
+          int64_t diff = check_ball(A, ball, b);
+          if (w.rank == 0)
+            printf("ball (via matvec) diff: %" PRId64 "\n", diff);
 #endif
           delete ball;
           delete B;
