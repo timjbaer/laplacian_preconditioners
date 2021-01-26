@@ -10,6 +10,7 @@
 #include "low_hop_emulator.h"
 #include "../../graph.h"
 
+#define EPSILON 0.00001
 
 char* getCmdOption(char ** begin,
                    char ** end,
@@ -191,39 +192,103 @@ Matrix<bpair> * real_to_bpair(Matrix<REAL> * A) {
 //   free(y);
 // }
 
-ball_t * correct_ball(Matrix<REAL> * A, int b) {
-  Matrix<REAL> * B = new Matrix<REAL>(*A);
-  for (int i = 0; i < log2(B->nrow); ++i) { // TODO: clear B instead of reallocating it
-    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
-  }
-  ball_t * correct = filter(B, b);
-  delete B;
-  return correct;
+// ball_t * correct_ball(Matrix<REAL> * A, int b) {
+//   Matrix<REAL> * B = new Matrix<REAL>(*A);
+//   for (int i = 0; i < log2(B->nrow); ++i) {
+//     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+//   }
+//   ball_t * correct = filter(B, b);
+//   delete B;
+//   return correct;
+// }
+
+int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B) // TODO: may need to consider sparsity like mst are_vectors_different()
+{
+  Scalar<int64_t> s;
+  s[""] += Function<REAL,REAL,int64_t>([](REAL a, REAL b){ return (int64_t) fabs(a - b) >= EPSILON; })((*A)["ij"],(*B)["ij"]);
+  return s.get_val();
 }
 
-void compare_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) { // TODO: assumes B has at most b nonzeros per row
+Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of filter()
   int n = A->nrow;
-  ball_t * ball = filter(B, b);
-  ball_t * correct = correct_ball(A, b);
-  assert(ball->n == correct->n);
-  assert(ball->b == correct->b);
-  int diff = 0;
-  if (A->wrld->rank == 0) {
-    for (int i = 0; i < n*b; ++i) {
-      if (ball->closest_neighbors[i].k != correct->closest_neighbors[i].k
-       || ball->closest_neighbors[i].d != correct->closest_neighbors[i].d) {
-        ++diff;
-      }
-    }
-    if (!diff) {
-      printf("passed test ball reduction\n");
-    } else {
-      printf("failed test ball reduction, differ by %d\n", diff);
-    }
+  int symm = A->symm;
+  World wrld = *(A->wrld);
+  Matrix<REAL> * B = new Matrix<REAL>(*A);
+  for (int i = 0; i < log2(B->nrow); ++i) {
+    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
   }
-  free(correct);
-  free(ball);
+  ball_t * ball = filter(B, b);
+  delete B;
+  B = new Matrix<REAL>(n, n, symm, wrld, MIN_PLUS_SR);
+  B->write(n*b, ball->closest_neighbors);
+  return B;
 }
+
+int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
+  Matrix<REAL> * correct = correct_ball(A, b);
+  // printf("A\n");
+  // A->print_matrix();
+  // printf("B\n");
+  // B->wrld = A->wrld;
+  // B->print_matrix();
+  // printf("correct\n");
+  // correct->print_matrix();
+  B->wrld = A->wrld; // FIXME: why does B's world become NULL?
+  correct->wrld = A->wrld; // FIXME: why does correct's world become NULL?
+  int64_t s = are_matrices_different(correct, B);
+  if (A->wrld->rank == 0)
+    printf("correct:\n");
+  correct->print_matrix();
+  delete correct;
+  return s;
+}
+
+// void compare_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) { // TODO: assumes B has at most b nonzeros per row
+//   int n = A->nrow;
+//   printf("print B (important)\n");
+//   B->print_matrix();
+//   exit(1);
+//   ball_t * ball = filter(B, b);
+//   ball_t * correct = correct_ball(A, b);
+//   assert(ball->n == correct->n);
+//   assert(ball->b == correct->b);
+//   int diff = 0;
+//   if (A->wrld->rank == 0) {
+// #ifdef DEBUG
+//     printf("ball:\n");
+//     for (int i = 0; i < n; ++i) {
+//       for (int j = 0; j < b; ++j) {
+//         printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
+//       }
+//       printf("\n");
+//     }
+// 
+//     printf("correct ball:\n");
+//     for (int i = 0; i < n; ++i) {
+//       for (int j = 0; j < b; ++j) {
+//         printf("(%d %f) ", correct->closest_neighbors[i*b + j].k, correct->closest_neighbors[i*b + j].d);
+//       }
+//       printf("\n");
+//     }
+// #endif
+// 
+//     for (int i = 0; i < n; ++i) {
+//       for (int j = 0; j < b; ++j) {
+//         if (ball->closest_neighbors[i*b + j].k != correct->closest_neighbors[i*b + j].k
+//          || ball->closest_neighbors[i*b + j].d != correct->closest_neighbors[i*b + j].d) {
+//           ++diff;
+//         }
+//       }
+//     }
+//     if (!diff) {
+//       printf("passed test ball reduction\n");
+//     } else {
+//       printf("failed test ball reduction, differ by %d\n", diff);
+//     }
+//   }
+//   free(correct);
+//   free(ball);
+// }
 
 int main(int argc, char** argv)
 {
@@ -257,6 +322,7 @@ int main(int argc, char** argv)
       critter_mode = atoi(getCmdOption(input_str, input_str+in_num, "-critter_mode"));
       if (critter_mode < 0) critter_mode = 0;
     } else critter_mode = 0;
+    init_mpi(A->nrow, b);
 #ifdef CRITTER
       critter::start(critter_mode);
 #endif
@@ -277,13 +343,16 @@ int main(int argc, char** argv)
           TAU_FSTOP(ball via matmat);
 #ifdef DEBUG
           if (w.rank == 0)
-            printf("ball:\n");
+            printf("ball (via matmat):\n");
           ball->print_matrix();
-          compare_ball(A, B, b);
+          // compare_ball(A, ball, b); // FIXME: causes MPI null ptr excep
+          int64_t diff = check_ball(A, ball, b);
+          if (w.rank == 0)
+            printf("ball (via matmat) diff: %" PRId64 "\n", diff);
 #endif
           delete ball;
           if (w.rank == 0)
-            printf("ball via matmat done in %1.2lf\n", etime - stime);
+            printf("ball (via matmat) done in %1.2lf\n", etime - stime);
         } else {
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
@@ -293,18 +362,19 @@ int main(int argc, char** argv)
           TAU_FSTOP(ball via matvec);
 #ifdef DEBUG
           if (w.rank == 0)
-            printf("ball:\n");
+            printf("ball (via matvec):\n");
           ball->print();
 #endif
           delete ball;
           delete B;
           if (w.rank == 0)
-            printf("ball via matvec done in %1.2lf\n", etime - stime);
+            printf("ball (via matvec) done in %1.2lf\n", etime - stime);
         }
       }
 #ifdef CRITTER
       critter::stop(critter_mode);
 #endif
+    destroy_mpi();
     delete A;
   }
   MPI_Finalize();

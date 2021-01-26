@@ -48,10 +48,6 @@ ball_t * filter(Matrix<REAL> * A, int b) {
   // assert(A->symm != SY);
   // assert(A->edge_map[0].type == CTF_int::PHYSICAL_MAP);
   int n = A->nrow;
-  if (!is_init_mpi) {
-    init_mpi(n, b);
-    is_init_mpi = true;
-  }
   int64_t A_npairs;
   Pair<REAL> * A_loc_pairs;
   A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
@@ -103,10 +99,6 @@ ball_t * filter(Matrix<bpair> * A, int b) {
   // assert(A->symm != SY);
   // assert(A->edge_map[0].type == CTF_int::PHYSICAL_MAP);
   int n = A->nrow;
-  if (!is_init_mpi) {
-    init_mpi(n, b);
-    is_init_mpi = true;
-  }
   int64_t A_npairs;
   Pair<bpair> * A_loc_pairs;
   A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
@@ -223,7 +215,6 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min
     B->write(n*b, ball->closest_neighbors);
   }
 
-  destroy_mpi();
   return B;
 }
 

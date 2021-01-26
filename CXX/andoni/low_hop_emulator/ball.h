@@ -204,7 +204,6 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
-  init_mpi(n, b);
   init_closest_edges(A, B);
   printf("B with closest edges\n");
   B->print();
@@ -227,7 +226,6 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
     (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
   }
 
-  destroy_mpi();
   return B;
 }
 
