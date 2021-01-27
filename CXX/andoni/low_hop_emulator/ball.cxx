@@ -1,5 +1,18 @@
 #include "ball.h"
 
+/***** utility *****/
+void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs) {
+  Pair<REAL> wr_pairs[npairs];
+  int nwrite = 0;
+  for (int i = 0; i < npairs; ++i) {
+    if (pairs[i].k != -1) {
+      wr_pairs[nwrite] = pairs[i];
+      ++nwrite;
+    }
+  }
+  A->write(nwrite, wr_pairs);
+}
+
 /***** filter b closest neighbors *****/
 MPI_Datatype MPI_PAIR;
 MPI_Datatype MPI_BALL;
@@ -57,7 +70,7 @@ ball_t * filter(Matrix<REAL> * A, int b) {
   ball->b = b;
   for (int64_t i = 0; i < n; ++i) {
     for (int64_t j = 0; j < b; ++j) {
-      ball->closest_neighbors[i*b + j].k = -1; // FIXME: issue if a vertex has less than b neighbors
+      ball->closest_neighbors[i*b + j].k = -1;
       ball->closest_neighbors[i*b + j].d = MAX_REAL;
     }
   }
@@ -108,7 +121,7 @@ ball_t * filter(Matrix<bpair> * A, int b) {
   ball->b = b;
   for (int64_t i = 0; i < n; ++i) {
     for (int64_t j = 0; j < b; ++j) {
-      ball->closest_neighbors[i*b + j].k = -1; // FIXME: issue if a vertex has less than b neighbors
+      ball->closest_neighbors[i*b + j].k = -1;
       ball->closest_neighbors[i*b + j].d = MAX_REAL;
     }
   }
@@ -213,7 +226,8 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min
     ball_t * ball = filter(B, b);
     delete B;
     B = new Matrix<REAL>(n, n, symm, wrld, MIN_PLUS_SR);
-    B->write(n*b, ball->closest_neighbors);
+    // B->write(n*b, ball->closest_neighbors);
+    write_valid_idxs(B, ball->closest_neighbors, n*b);
   }
 
   return B;

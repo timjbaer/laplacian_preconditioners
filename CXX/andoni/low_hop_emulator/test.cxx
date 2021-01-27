@@ -220,7 +220,8 @@ Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of fil
   ball_t * ball = filter(B, b);
   delete B;
   B = new Matrix<REAL>(n, n, symm, wrld, MIN_PLUS_SR);
-  B->write(n*b, ball->closest_neighbors);
+  // B->write(n*b, ball->closest_neighbors);
+  write_valid_idxs(B, ball->closest_neighbors, n*b);
   return B;
 }
 
@@ -253,7 +254,7 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   ball->b = b;
   for (int64_t i = 0; i < n; ++i) {
     for (int64_t j = 0; j < b; ++j) {
-      ball->closest_neighbors[i*b + j].k = -1; // FIXME: issue if a vertex has less than b neighbors
+      ball->closest_neighbors[i*b + j].k = -1;
       ball->closest_neighbors[i*b + j].d = MAX_REAL;
     }
   }
@@ -335,7 +336,7 @@ int main(int argc, char** argv)
     Matrix<REAL> * B = get_graph(argc, argv, w);
     Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring
-    (*A)["ii"] = 0;
+    (*A)["ii"] = MAX_REAL;
     delete B;
     if (getCmdOption(input_str, input_str+in_num, "-b")){
       b = atoi(getCmdOption(input_str, input_str+in_num, "-b"));
@@ -372,7 +373,6 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matmat):\n");
           ball->print_matrix();
-          // compare_ball(A, ball, b); // FIXME: causes MPI null ptr excep
           int64_t diff = check_ball(A, ball, b);
           if (w.rank == 0)
             printf("ball (via matmat) diff: %" PRId64 "\n", diff);

@@ -12,6 +12,9 @@ typedef float REAL;
 
 #define BALL_SIZE 4
 
+/***** utility *****/
+void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
+
 /***** filter b closest neighbors *****/
 extern MPI_Datatype MPI_PAIR;
 extern MPI_Datatype MPI_BALL;
