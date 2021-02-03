@@ -306,6 +306,10 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
 
     for (int i = 0; i < n; ++i) {
       for (int j = 0; j < b; ++j) {
+        if (ball->closest_neighbors[i*b + j].d == correct_ball->closest_neighbors[i*b + j].d
+         && ball->closest_neighbors[i*b + j].d == MAX_REAL) { // FIXME: temp fix for (2,\inf) problem
+          continue;
+        }
         if (ball->closest_neighbors[i*b + j].k != correct_ball->closest_neighbors[i*b + j].k / n // TODO: refactor filter to output (vertex, dist) not (key, dist)
          || fabs(ball->closest_neighbors[i*b + j].d - correct_ball->closest_neighbors[i*b + j].d) >= EPSILON) {
           ++diff;
@@ -381,9 +385,9 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matmat) done in %1.2lf\n", etime - stime);
         } else {
+          Matrix<bpair> * B = real_to_bpair(A);
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
-          Matrix<bpair> * B = real_to_bpair(A);
           Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(B);
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matvec);
