@@ -10,8 +10,6 @@
 #include "low_hop_emulator.h"
 #include "../../graph.h"
 
-#define EPSILON 0.00001
-
 char* getCmdOption(char ** begin,
                    char ** end,
                    const   std::string & option) {
@@ -298,7 +296,11 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
     printf("correct ball:\n");
     for (int i = 0; i < n; ++i) {
       for (int j = 0; j < b; ++j) {
-        printf("(%d %f) ", correct_ball->closest_neighbors[i*b + j].k / n, correct_ball->closest_neighbors[i*b + j].d); // TODO: refactor filter to output (vertex, dist) not (key, dist)
+        if (fabs(correct_ball->closest_neighbors[i*b + j].d - MAX_REAL) < EPSILON) { // fix for comparing (-1, \inf) and (0, \inf) problem
+          printf("(%d %f) ", -1, (float) MAX_REAL);
+        } else {
+          printf("(%d %f) ", correct_ball->closest_neighbors[i*b + j].k / n, correct_ball->closest_neighbors[i*b + j].d);
+        }
       }
       printf("\n");
     }
@@ -306,8 +308,8 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
 
     for (int i = 0; i < n; ++i) {
       for (int j = 0; j < b; ++j) {
-        if (ball->closest_neighbors[i*b + j].d == correct_ball->closest_neighbors[i*b + j].d
-         && ball->closest_neighbors[i*b + j].d == MAX_REAL) { // FIXME: temp fix for (2,\inf) problem
+        if (fabs(ball->closest_neighbors[i*b + j].d - correct_ball->closest_neighbors[i*b + j].d) < EPSILON
+         && fabs(ball->closest_neighbors[i*b + j].d - MAX_REAL) < EPSILON) { // fix for comparing (-1, \inf) and (0, \inf) problem
           continue;
         }
         if (ball->closest_neighbors[i*b + j].k != correct_ball->closest_neighbors[i*b + j].k / n // TODO: refactor filter to output (vertex, dist) not (key, dist)
@@ -359,6 +361,7 @@ int main(int argc, char** argv)
       critter::start(critter_mode);
 #endif
       if (A != NULL) {
+        assert(b < A->nrow);
         perturb(A);
 #ifdef DEBUG
         if (w.rank == 0)
