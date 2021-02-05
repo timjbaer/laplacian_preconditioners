@@ -10,7 +10,9 @@ using namespace CTF;
 typedef float REAL;
 #define MAX_REAL (INT_MAX/2)
 
-#define BALL_SIZE 16
+#define BALL_SIZE 4
+
+#define EPSILON 0.00001
 
 /***** utility *****/
 void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
@@ -175,13 +177,6 @@ template<int b>
 void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
   int n = A->nrow;
   ball_t * ball = filter(A, b);
-  // printf("ball:\n");
-  // for (int i = 0; i < n; ++i) {
-  //   for (int j = 0; j < b; ++j) {
-  //     printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
-  //   }
-  //   printf("\n");
-  // }
   Pair<bvector<b>> bvecs[n];
 #ifdef _OPENMP
   #pragma omp parallel for
@@ -219,9 +214,11 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   init_closest_edges(A, B);
 
   Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
-    bvector<b> ret = bvec;
+    bvector<b> ret;
     for (int i = 0; i < b; ++i) {
-      if (ret.closest_neighbors[i].vertex == -1) {
+      if (e.vertex == -1) // FIXME: since intersect_only = true, should not be necessary... is ctf not doing float computation correctly to see if (-1, \inf)'s are addid?
+        continue;
+      if (bvec.closest_neighbors[i].vertex == -1) {
         ret.closest_neighbors[i] = bvec.closest_neighbors[i];
       } else {
         ret.closest_neighbors[i].vertex = bvec.closest_neighbors[i].vertex;
@@ -230,9 +227,9 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
     }
     return ret;
   });
+  relax.intersect_only = true;
 
   for (int i = 0; i < b; ++i) {
-  // for (int i = 0; i < 1; ++i) {
     (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
   }
 
