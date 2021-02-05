@@ -361,7 +361,7 @@ int main(int argc, char** argv)
       critter::start(critter_mode);
 #endif
       if (A != NULL) {
-        assert(b < A->nrow);
+        assert(b <= A->nrow);
         perturb(A);
 #ifdef DEBUG
         if (w.rank == 0)

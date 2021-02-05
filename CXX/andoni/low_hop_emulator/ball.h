@@ -12,7 +12,7 @@ typedef float REAL;
 
 #define BALL_SIZE 4
 
-#define EPSILON 0.00001
+#define EPSILON 0.01
 
 /***** utility *****/
 void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
