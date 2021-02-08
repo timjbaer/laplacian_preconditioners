@@ -8,29 +8,15 @@
 using namespace CTF;
 #define SEED 23
 typedef float REAL;
-#define MAX_REAL (INT_MAX/2)
-
+#define MAX_REAL  (INT_MAX/2)
 #define BALL_SIZE 4
-
-#define EPSILON 0.01
+#define MAT_SIZE  8
+#define EPSILON   0.01
 
 /***** utility *****/
 void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
 
 /***** filter b closest neighbors *****/
-extern MPI_Datatype MPI_PAIR;
-extern MPI_Datatype MPI_BALL;
-extern MPI_Op oball;
-
-struct ball_t {
-  int n;
-  int b;
-  Pair<REAL> closest_neighbors[]; // contiguous, flattened 2D array
-};
-
-void init_mpi(int n, int b);
-void destroy_mpi();
-
 class bpair {
   public:
     int vertex;
@@ -42,8 +28,7 @@ class bpair {
 };
 Monoid<bpair> get_bpair_monoid();
 
-ball_t * filter(Matrix<REAL> * A, int b);
-ball_t * filter(Matrix<bpair> * A, int b);
+void filter(Matrix<REAL> * A, int b);
 
 /***** matmat approach *****/
 static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
@@ -175,8 +160,25 @@ Monoid< bvector<b> > get_bvector_monoid() {
 
 template<int b>
 void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
-  int n = A->nrow;
-  ball_t * ball = filter(A, b);
+  // assert(1d distribution);
+  int n = A->nrow; 
+  int64_t A_npairs;
+  Pair<bpair> * A_pairs;
+  A->get_local_pairs(&A_npairs, &A_pairs, false); // TODO: more efficient if true
+  assert(A_npairs % n == 0); // processes should own entire rows
+  std::sort(A_pairs, A_pairs + A_npairs,  // sort so rows are contigious
+                [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
+                  { return first.k / MAT_SIZE < second.k / MAT_SIZE; } // FIXME: MAT_SIZE is quick workaround
+                  );
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int64_t i = 0; i < A_npairs / n; ++i) { // sort to filter b closest edges
+    std::partial_sort(A_pairs + i*n, A_pairs + i*n + b, A_pairs + (i+1)*n, 
+                  [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
+                    { return first.d.dist < second.d.dist; }
+                    );
+  }
   Pair<bvector<b>> bvecs[n];
 #ifdef _OPENMP
   #pragma omp parallel for
@@ -184,25 +186,11 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
   for (int i = 0; i < n; ++i) {
     bvecs[i].k = i;
     for (int j = 0; j < b; ++j) {
-      bvecs[i].d.closest_neighbors[j].vertex = -1;
-      bvecs[i].d.closest_neighbors[j].dist = MAX_REAL;
-    }
-  }
-  int off[n];
-  memset(off, 0, n*sizeof(int));
-  for (int i = 0; i < n*b; ++i) { // fills bvecs in sorted order
-    Pair<REAL> pair = ball->closest_neighbors[i];
-    int vertex = pair.k % n;
-    if (pair.k != -1) {
-      bvecs[vertex].d.closest_neighbors[off[vertex]].vertex = pair.k / n;
-      bvecs[vertex].d.closest_neighbors[off[vertex]].dist = pair.d;
-      ++off[vertex];
-      assert(off[vertex] <= b);
+      bvecs[i].d.closest_neighbors[j] = A_pairs[i*n + j].d;
     }
   }
   B->write(n, bvecs); 
-
-  free(ball);
+  delete [] A_pairs;
 }
 
 template<int b>
@@ -214,10 +202,9 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   init_closest_edges(A, B);
 
   Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
+    // assert(e.vertex > -1 && e.dist < MAX_REAL); // since intersect_only = true
     bvector<b> ret;
     for (int i = 0; i < b; ++i) {
-      if (e.vertex == -1) // FIXME: since intersect_only = true, should not be necessary... is ctf not doing float computation correctly to see if (-1, \inf)'s are addid?
-        continue;
       if (bvec.closest_neighbors[i].vertex == -1) {
         ret.closest_neighbors[i] = bvec.closest_neighbors[i];
       } else {
