@@ -106,10 +106,20 @@ void perturb(Matrix<REAL> * A) {
   A->write(A_npairs, A_loc_pairs); 
 }
 
-Matrix<bpair> * real_to_bpair(Matrix<REAL> * A) {
+Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
   int n = A->nrow;
+  World * w = A->wrld;
+  int np = A->wrld->np;
   const static Monoid<bpair> MIN_BPAIR = get_bpair_monoid();
-  Matrix<bpair> * B = new Matrix<bpair>(n, n, *(A->wrld), MIN_BPAIR);
+  Matrix<bpair> * B;
+  if (d == 1) { // 1D distribution (block along rows)
+    int plens[1] = { np };
+    Partition part(1, plens);
+    Idx_Partition blk;
+    B = new Matrix<bpair>(n, n, "ij", part["j"], blk, B->symm, *w, MIN_BPAIR); // FIXME: why is not part["i"]?
+  } else { // default (2D) distribution
+    B = new Matrix<bpair>(n, n, *w, MIN_BPAIR);
+  }
   int64_t npairs;
   Pair<REAL> * A_loc_pairs;
   A->get_local_pairs(&npairs, &A_loc_pairs, true);
@@ -331,6 +341,7 @@ int main(int argc, char** argv)
   int critter_mode=0;
   int b;
   int bvec=0;
+  int d;
 
   int rank;
   int np;
@@ -340,6 +351,10 @@ int main(int argc, char** argv)
   {
     World w(argc, argv);
     Matrix<REAL> * B = get_graph(argc, argv, w);
+    if (getCmdOption(input_str, input_str+in_num, "-d")){
+      d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
+      if (d < 1 || d > 2) d = 2;
+    }
     Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring
     (*A)["ii"] = MAX_REAL;
@@ -388,7 +403,7 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matmat) done in %1.2lf\n", etime - stime);
         } else {
-          Matrix<bpair> * B = real_to_bpair(A);
+          Matrix<bpair> * B = real_to_bpair(A, d);
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
           Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(B);

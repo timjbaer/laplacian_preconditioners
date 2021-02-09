@@ -9,14 +9,9 @@ using namespace CTF;
 #define SEED 23
 typedef float REAL;
 #define MAX_REAL  (INT_MAX/2)
-#define BALL_SIZE 4
-#define MAT_SIZE  8
 #define EPSILON   0.01
+#define BALL_SIZE 4
 
-/***** utility *****/
-void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
-
-/***** filter b closest neighbors *****/
 class bpair {
   public:
     int vertex;
@@ -28,6 +23,10 @@ class bpair {
 };
 Monoid<bpair> get_bpair_monoid();
 
+/***** utility *****/
+void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
+
+/***** filter b closest neighbors *****/
 void filter(Matrix<REAL> * A, int b);
 
 /***** matmat approach *****/
@@ -160,36 +159,66 @@ Monoid< bvector<b> > get_bvector_monoid() {
 
 template<int b>
 void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
-  // assert(1d distribution);
+  // if (A->wrld->rank == 0) {
+  //   printf("A loc pairs on rank 0 in init_closest_edges\n");
+  //   for (int i = 0; i < A_npairs; ++i) {
+  //     printf("(%d %f)\n", A_pairs[i].k, A_pairs[i].d.dist);
+  //   }
+  // }
+  // exit(1);
   int n = A->nrow; 
   int64_t A_npairs;
   Pair<bpair> * A_pairs;
-  A->get_local_pairs(&A_npairs, &A_pairs, false); // TODO: more efficient if true
-  assert(A_npairs % n == 0); // processes should own entire rows
-  std::sort(A_pairs, A_pairs + A_npairs,  // sort so rows are contigious
-                [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
-                  { return first.k / MAT_SIZE < second.k / MAT_SIZE; } // FIXME: MAT_SIZE is quick workaround
-                  );
+  A->get_local_pairs(&A_npairs, &A_pairs, true); // FIXME: are get_local_pairs in sorted order by key?
+  int np = A->wrld->np;
+  int64_t off[(int)ceil(n/(float)np)+1];
+  int vertex = A_pairs[0].k / n;
+  int nrows = 0;
+  for (int i = 0; i < A_npairs; ++i) {
+    if (A_pairs[i].k / n == vertex) {
+      off[nrows] = i;
+      vertex += np;
+      ++nrows;
+    }
+  }
+  off[nrows] = A_npairs;
+  assert(nrows >= n/(float)np);
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
-  for (int64_t i = 0; i < A_npairs / n; ++i) { // sort to filter b closest edges
-    std::partial_sort(A_pairs + i*n, A_pairs + i*n + b, A_pairs + (i+1)*n, 
+  for (int64_t i = 0; i < nrows; ++i) { // sort to filter b closest edges
+    int nedges = off[i+1] - off[i];
+    int64_t first = off[i];
+    int64_t middle = off[i] + (nedges < b ? nedges : b);
+    int64_t last = off[i] + nedges;
+    std::partial_sort(A_pairs + first, A_pairs + middle, A_pairs + last, 
                   [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
                     { return first.d.dist < second.d.dist; }
                     );
+    // std::partial_sort(A_pairs + i*n, A_pairs + i*n + b, A_pairs + (i+1)*n, 
+    //               [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
+    //                 { return first.d.dist < second.d.dist; }
+    //                 );
   }
-  Pair<bvector<b>> bvecs[n];
+  // if (A->wrld->rank == 0) {
+  //   printf("HERE\n");
+  //   for (int i = 0; i < A_npairs; ++i) {
+  //     printf("(%d %f)\n", A_pairs[i].k, A_pairs[i].d.dist);
+  //   }
+  // }
+  // exit(1);
+  Pair<bvector<b>> bvecs[nrows];
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
-  for (int i = 0; i < n; ++i) {
-    bvecs[i].k = i;
-    for (int j = 0; j < b; ++j) {
-      bvecs[i].d.closest_neighbors[j] = A_pairs[i*n + j].d;
+  for (int i = 0; i < nrows; ++i) {
+    bvecs[i].k = A_pairs[off[i]].k / n;
+    int nedges = off[i+1] - off[i];
+    for (int j = 0; j < nedges; ++j) {
+      bvecs[i].d.closest_neighbors[j] = A_pairs[off[i] + j].d;
     }
   }
-  B->write(n, bvecs); 
+  B->write(nrows, bvecs); 
   delete [] A_pairs;
 }
 
