@@ -116,7 +116,7 @@ Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
     int plens[1] = { np };
     Partition part(1, plens);
     Idx_Partition blk;
-    B = new Matrix<bpair>(n, n, "ij", part["j"], blk, B->symm, *w, MIN_BPAIR); // FIXME: why is not part["i"]?
+    B = new Matrix<bpair>(n, n, "ij", part["j"], blk, A->symm, *w, MIN_BPAIR); // FIXME: why is not part["i"]?
   } else { // default (2D) distribution
     B = new Matrix<bpair>(n, n, *w, MIN_BPAIR);
   }
@@ -217,122 +217,82 @@ int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B) // TODO: may 
   return s.get_val();
 }
 
-// Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of filter()
-//   int n = A->nrow;
-//   int symm = A->symm;
-//   World wrld = *(A->wrld);
-//   Matrix<REAL> * B = new Matrix<REAL>(*A);
-//   for (int i = 0; i < log2(B->nrow); ++i) {
-//     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
-//   }
-//   ball_t * ball = filter(B, b);
-//   delete B;
-//   B = new Matrix<REAL>(n, n, symm, wrld, MIN_PLUS_SR);
-//   // B->write(n*b, ball->closest_neighbors);
-//   write_valid_idxs(B, ball->closest_neighbors, n*b);
-//   return B;
-// }
-// 
-// int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
-//   Matrix<REAL> * correct = correct_ball(A, b);
-//   // printf("A\n");
-//   // A->print_matrix();
-//   // printf("B\n");
-//   // B->wrld = A->wrld;
-//   // B->print_matrix();
-//   // printf("correct\n");
-//   // correct->print_matrix();
-//   B->wrld = A->wrld; // FIXME: why does B's world become NULL?
-//   correct->wrld = A->wrld; // FIXME: why does correct's world become NULL?
-//   int64_t s = are_matrices_different(correct, B);
-//   if (A->wrld->rank == 0)
-//     printf("correct:\n");
-//   correct->print_matrix();
-//   delete correct;
-//   return s;
-// }
-// 
-// int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
-//   int n = A->nrow;
-//   int64_t B_npairs;
-//   Pair<bvector<BALL_SIZE>> * B_loc_pairs;
-//   B->get_local_pairs(&B_npairs, &B_loc_pairs, true);
-//   ball_t * ball = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
-//   ball->n = n;
-//   ball->b = b;
-//   for (int64_t i = 0; i < n; ++i) {
-//     for (int64_t j = 0; j < b; ++j) {
-//       ball->closest_neighbors[i*b + j].k = -1;
-//       ball->closest_neighbors[i*b + j].d = MAX_REAL;
-//     }
-//   }
-//   for (int64_t i = 0; i < B_npairs; ++i) {
-//     int vertex = B_loc_pairs[i].k;
-//     for (int j = 0; j < b; ++j) {
-//       ball->closest_neighbors[vertex*b + j].k = B_loc_pairs[i].d.closest_neighbors[j].vertex;
-//       ball->closest_neighbors[vertex*b + j].d = B_loc_pairs[i].d.closest_neighbors[j].dist;
-//     }
-//   }
-// 
-//   int rank;
-//   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//   char * idx = NULL;
-//   Idx_Partition prl;
-//   Idx_Partition blk;
-//   B->get_distribution(&idx, prl, blk);
-//   int color = 1; // TODO: communicate across rows
-// 
-//   MPI_Comm row_comm;
-//   MPI_Comm_split(MPI_COMM_WORLD, color, rank, &row_comm);
-//   MPI_Allreduce(MPI_IN_PLACE, ball, 1, MPI_BALL, oball, row_comm);
-// 
-//   delete [] B_loc_pairs;
-// 
-//   Matrix<REAL> * correct = correct_ball(A, b);
-//   ball_t * correct_ball = filter(correct, b); // TODO: see TODO next to filter
-//   assert(ball->n == correct_ball->n);
-//   assert(ball->b == correct_ball->b);
-//   int64_t diff = 0;
-//   if (A->wrld->rank == 0) {
-// #ifdef DEBUG
-//     printf("ball:\n");
-//     for (int i = 0; i < n; ++i) {
-//       for (int j = 0; j < b; ++j) {
-//         printf("(%d %f) ", ball->closest_neighbors[i*b + j].k, ball->closest_neighbors[i*b + j].d);
-//       }
-//       printf("\n");
-//     }
-// 
-//     printf("correct ball:\n");
-//     for (int i = 0; i < n; ++i) {
-//       for (int j = 0; j < b; ++j) {
-//         if (fabs(correct_ball->closest_neighbors[i*b + j].d - MAX_REAL) < EPSILON) { // fix for comparing (-1, \inf) and (0, \inf) problem
-//           printf("(%d %f) ", -1, (float) MAX_REAL);
-//         } else {
-//           printf("(%d %f) ", correct_ball->closest_neighbors[i*b + j].k / n, correct_ball->closest_neighbors[i*b + j].d);
-//         }
-//       }
-//       printf("\n");
-//     }
-// #endif
-// 
-//     for (int i = 0; i < n; ++i) {
-//       for (int j = 0; j < b; ++j) {
-//         if (fabs(ball->closest_neighbors[i*b + j].d - correct_ball->closest_neighbors[i*b + j].d) < EPSILON
-//          && fabs(ball->closest_neighbors[i*b + j].d - MAX_REAL) < EPSILON) { // fix for comparing (-1, \inf) and (0, \inf) problem
-//           continue;
-//         }
-//         if (ball->closest_neighbors[i*b + j].k != correct_ball->closest_neighbors[i*b + j].k / n // TODO: refactor filter to output (vertex, dist) not (key, dist)
-//          || fabs(ball->closest_neighbors[i*b + j].d - correct_ball->closest_neighbors[i*b + j].d) >= EPSILON) {
-//           ++diff;
-//         }
-//       }
-//     }
-//   }
-//   free(correct);
-//   free(ball);
-//   return diff;
-// }
+Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of filter()
+  int n = A->nrow;
+  int symm = A->symm;
+  World wrld = *(A->wrld);
+  Matrix<REAL> * B = new Matrix<REAL>(*A);
+  for (int i = 0; i < log2(B->nrow); ++i) {
+    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+  }
+  filter(B, b);
+  return B;
+}
+
+int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
+  Matrix<REAL> * correct = correct_ball(A, b);
+  if (A->wrld->rank == 0)
+    printf("correct:\n");
+  correct->print_matrix();
+  // printf("A\n");
+  // A->print_matrix();
+  // printf("B\n");
+  // B->wrld = A->wrld;
+  // B->print_matrix();
+  // printf("correct\n");
+  // correct->print_matrix();
+  B->wrld = A->wrld; // FIXME: why does B's world become NULL?
+  correct->wrld = A->wrld; // FIXME: why does correct's world become NULL?
+  int64_t s = are_matrices_different(correct, B);
+  delete correct;
+  return s;
+}
+ 
+int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) { // assumes A and B on same 1D distribution
+  int n = A->nrow;
+  Matrix<REAL> * C = correct_ball(A, b);
+  if (A->wrld->rank == 0)
+    printf("correct:\n");
+  C->print_matrix();
+  Vector<int64_t> * C_nnzs = new Vector<int64_t>(n);
+  Vector<int64_t> * B_nnzs = new Vector<int64_t>(n);
+  (*C_nnzs)["j"] += Function<REAL,int64_t>([](REAL a){ return (int64_t) (fabs(a - MAX_REAL) >= EPSILON); })((*C)["ij"]); // FIXME: why do I have to iterate over j's here
+  (*B_nnzs)["i"] += Function<bvector<BALL_SIZE>,int64_t>([](bvector<BALL_SIZE> a){ 
+      int64_t nnz = 0;
+      for (int i = 0; i < BALL_SIZE; ++i) {
+        if (a.closest_neighbors[i].vertex != -1 && fabs(a.closest_neighbors[i].dist - MAX_REAL) >= EPSILON) // FIXME: quick fix to (2,\inf) problem
+          ++nnz;
+      }
+      return nnz;
+    })((*B)["i"]);
+  // if (A->wrld->rank == 0) printf("correct\n");
+  // C->print_matrix();
+  // if (A->wrld->rank == 0) printf("C nnzs\n");
+  // C_nnzs->print();
+  // if (A->wrld->rank == 0) printf("B nnzs\n");
+  // B_nnzs->print();
+  Scalar<int> nnz_diff;
+  nnz_diff[""] += Function<int64_t,int64_t,int>([](int64_t a, int64_t b){ return (int) (a != b); })((*C_nnzs)["i"],(*B_nnzs)["i"]);
+  if (A->wrld->rank == 0) {
+    if (!nnz_diff)
+      printf("ball (via matmat) has correct number of nnzs for all rows\n");
+    else
+      printf("ball (via matmat) has wrong number of nnzs for %d rows\n", nnz_diff.get_val());
+  }
+
+  // FIXME: giving MPI error
+  // Scalar<int64_t> diff;
+  // diff[""] += Bivar_Function<REAL,bvector<BALL_SIZE>,int64_t>([](REAL a, bvector<BALL_SIZE> b){ // TODO: check that vertex is correct
+  //     for (int i = 0; i < BALL_SIZE; ++i) {
+  //       if (fabs(b.closest_neighbors[i].dist - a) < EPSILON)
+  //         return 0;
+  //     }
+  //     return 1;
+  //   })((*C)["ij"], (*B)["i"]);
+  // delete C;
+  // return diff.get_val();
+  return -1;
+}
 
 int main(int argc, char** argv)
 {
@@ -341,7 +301,7 @@ int main(int argc, char** argv)
   int critter_mode=0;
   int b;
   int bvec=0;
-  int d;
+  int d=2;
 
   int rank;
   int np;
@@ -355,7 +315,16 @@ int main(int argc, char** argv)
       d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
       if (d < 1 || d > 2) d = 2;
     }
-    Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
+    Matrix<REAL> * A;
+    if (d == 1) { // 1D distribution (block along rows)
+      int plens[1] = { np };
+      Partition part(1, plens);
+      Idx_Partition blk;
+      A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["j"], blk, B->symm, w, MIN_PLUS_SR); // FIXME: why is it not part["i"]?
+    } else { // default (2D) distribution
+      A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
+    }
+    // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring
     (*A)["ii"] = MAX_REAL;
     delete B;
@@ -395,9 +364,9 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matmat):\n");
           ball->print_matrix();
-          // int64_t diff = check_ball(A, ball, b);
-          // if (w.rank == 0)
-          //   printf("ball (via matmat) diff: %" PRId64 "\n", diff);
+          int64_t diff = check_ball(A, ball, b);
+          if (w.rank == 0)
+            printf("ball (via matmat) diff: %" PRId64 "\n", diff);
 #endif
           delete ball;
           if (w.rank == 0)
@@ -413,9 +382,9 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matvec):\n");
           ball->print();
-          // int64_t diff = check_ball(A, ball, b);
-          // if (w.rank == 0)
-          //   printf("ball (via matvec) diff: %" PRId64 "\n", diff);
+          int64_t diff = check_ball(A, ball, b);
+          if (w.rank == 0)
+            printf("ball (via matvec) diff: %" PRId64 "\n", diff);
 #endif
           delete ball;
           delete B;

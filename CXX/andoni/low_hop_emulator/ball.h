@@ -24,7 +24,8 @@ class bpair {
 Monoid<bpair> get_bpair_monoid();
 
 /***** utility *****/
-void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
+void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
+void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
 
 /***** filter b closest neighbors *****/
 void filter(Matrix<REAL> * A, int b);
@@ -159,6 +160,10 @@ Monoid< bvector<b> > get_bvector_monoid() {
 
 template<int b>
 void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
+  int n = A->nrow; 
+  int64_t A_npairs;
+  Pair<bpair> * A_pairs;
+  A->get_local_pairs(&A_npairs, &A_pairs, true); // FIXME: are get_local_pairs in sorted order by key?
   // if (A->wrld->rank == 0) {
   //   printf("A loc pairs on rank 0 in init_closest_edges\n");
   //   for (int i = 0; i < A_npairs; ++i) {
@@ -166,10 +171,6 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
   //   }
   // }
   // exit(1);
-  int n = A->nrow; 
-  int64_t A_npairs;
-  Pair<bpair> * A_pairs;
-  A->get_local_pairs(&A_npairs, &A_pairs, true); // FIXME: are get_local_pairs in sorted order by key?
   int np = A->wrld->np;
   int64_t off[(int)ceil(n/(float)np)+1];
   int vertex = A_pairs[0].k / n;
@@ -182,7 +183,6 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
     }
   }
   off[nrows] = A_npairs;
-  assert(nrows >= n/(float)np);
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
@@ -223,7 +223,7 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
 }
 
 template<int b>
-Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
+Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) { // FIXME: (2,\inf) problem
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
