@@ -163,22 +163,21 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
   int n = A->nrow; 
   int64_t A_npairs;
   Pair<bpair> * A_pairs;
-  A->get_local_pairs(&A_npairs, &A_pairs, true); // FIXME: are get_local_pairs in sorted order by key?
-  // if (A->wrld->rank == 0) {
-  //   printf("A loc pairs on rank 0 in init_closest_edges\n");
-  //   for (int i = 0; i < A_npairs; ++i) {
-  //     printf("(%d %f)\n", A_pairs[i].k, A_pairs[i].d.dist);
-  //   }
-  // }
-  // exit(1);
+  A->get_local_pairs(&A_npairs, &A_pairs, true);
+  std::sort(A_pairs, A_pairs + A_npairs,
+        std::bind([](Pair<bpair> const & first, Pair<bpair> const & second, int64_t n) -> bool
+                    { return first.k % n < second.k % n; }, 
+                    std::placeholders::_1, std::placeholders::_2, n)
+           );
+
   int np = A->wrld->np;
   int64_t off[(int)ceil(n/(float)np)+1];
-  int vertex = A_pairs[0].k / n;
+  int vertex = -1;
   int nrows = 0;
   for (int i = 0; i < A_npairs; ++i) {
-    if (A_pairs[i].k / n == vertex) {
+    if (A_pairs[i].k % n > vertex) {
       off[nrows] = i;
-      vertex += np;
+      vertex = A_pairs[i].k % n;
       ++nrows;
     }
   }
@@ -195,26 +194,15 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
                   [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
                     { return first.d.dist < second.d.dist; }
                     );
-    // std::partial_sort(A_pairs + i*n, A_pairs + i*n + b, A_pairs + (i+1)*n, 
-    //               [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
-    //                 { return first.d.dist < second.d.dist; }
-    //                 );
   }
-  // if (A->wrld->rank == 0) {
-  //   printf("HERE\n");
-  //   for (int i = 0; i < A_npairs; ++i) {
-  //     printf("(%d %f)\n", A_pairs[i].k, A_pairs[i].d.dist);
-  //   }
-  // }
-  // exit(1);
   Pair<bvector<b>> bvecs[nrows];
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
   for (int i = 0; i < nrows; ++i) {
-    bvecs[i].k = A_pairs[off[i]].k / n;
+    bvecs[i].k = A_pairs[off[i]].k % n;
     int nedges = off[i+1] - off[i];
-    for (int j = 0; j < nedges; ++j) {
+    for (int j = 0; j < (nedges < b ? nedges : b); ++j) {
       bvecs[i].d.closest_neighbors[j] = A_pairs[off[i] + j].d;
     }
   }
@@ -234,6 +222,8 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) { // FIXME: (2,\inf) proble
     // assert(e.vertex > -1 && e.dist < MAX_REAL); // since intersect_only = true
     bvector<b> ret;
     for (int i = 0; i < b; ++i) {
+      if (e.vertex == -1) // FIXME: since intersect_only = true, should not be necessary... is ctf not doing float computation correctly to see if (-1, \inf)'s are addid?
+        continue;
       if (bvec.closest_neighbors[i].vertex == -1) {
         ret.closest_neighbors[i] = bvec.closest_neighbors[i];
       } else {

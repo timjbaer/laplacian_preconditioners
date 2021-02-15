@@ -126,7 +126,7 @@ Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
   Pair<bpair> B_loc_pairs[npairs];
   for (int i = 0; i < npairs; ++i) {
     B_loc_pairs[i].k = A_loc_pairs[i].k;
-    B_loc_pairs[i].d.vertex = A_loc_pairs[i].k % n;
+    B_loc_pairs[i].d.vertex = A_loc_pairs[i].k / n;
     B_loc_pairs[i].d.dist = A_loc_pairs[i].d;
   }
   B->write(npairs, B_loc_pairs);
