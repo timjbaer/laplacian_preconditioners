@@ -24,7 +24,7 @@ void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) 
     for (; j < i + b && j < npairs && pairs[j].k % n == vertex; ++j) {
       wr_pairs[nwrite] = pairs[j];
       ++nwrite;
-      assert(nwrite < npairs);
+      assert(nwrite <= npairs);
     }
     while (j < npairs && pairs[j].k % n == vertex) {
       ++j;
