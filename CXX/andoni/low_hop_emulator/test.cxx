@@ -94,7 +94,7 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   return A;
 }
 
-void perturb(Matrix<REAL> * A) {
+void perturb(Matrix<REAL> * A) { // TODO: is this still necessary?
   int64_t A_npairs;
   Pair<REAL> * A_loc_pairs;
   A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
@@ -256,42 +256,38 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) { //
   C->print_matrix();
   Vector<int64_t> * C_nnzs = new Vector<int64_t>(n);
   Vector<int64_t> * B_nnzs = new Vector<int64_t>(n);
-  (*C_nnzs)["j"] += Function<REAL,int64_t>([](REAL a){ return (int64_t) (fabs(a - MAX_REAL) >= EPSILON); })((*C)["ij"]); // FIXME: why do I have to iterate over j's here
+  (*C_nnzs)["i"] += Function<REAL,int64_t>([](REAL a){ return (int64_t) (fabs(MAX_REAL - a) >= EPSILON); })((*C)["ij"]);
   (*B_nnzs)["i"] += Function<bvector<BALL_SIZE>,int64_t>([](bvector<BALL_SIZE> a){ 
       int64_t nnz = 0;
       for (int i = 0; i < BALL_SIZE; ++i) {
-        if (a.closest_neighbors[i].vertex != -1 && fabs(a.closest_neighbors[i].dist - MAX_REAL) >= EPSILON) // FIXME: quick fix to (2,\inf) problem
+        if (a.closest_neighbors[i].vertex != -1 && fabs(MAX_REAL - a.closest_neighbors[i].dist) >= EPSILON) // FIXME: quick fix to (2,\inf) problem
           ++nnz;
       }
       return nnz;
     })((*B)["i"]);
-  // if (A->wrld->rank == 0) printf("correct\n");
-  // C->print_matrix();
-  // if (A->wrld->rank == 0) printf("C nnzs\n");
-  // C_nnzs->print();
-  // if (A->wrld->rank == 0) printf("B nnzs\n");
-  // B_nnzs->print();
+  if (A->wrld->rank == 0) printf("C nnzs\n");
+  C_nnzs->print();
+  if (A->wrld->rank == 0) printf("B nnzs\n");
+  B_nnzs->print();
   Scalar<int> nnz_diff;
   nnz_diff[""] += Function<int64_t,int64_t,int>([](int64_t a, int64_t b){ return (int) (a != b); })((*C_nnzs)["i"],(*B_nnzs)["i"]);
   if (A->wrld->rank == 0) {
     if (!nnz_diff)
-      printf("ball (via matmat) has correct number of nnzs for all rows\n");
+      printf("ball (via matvec) has correct number of nnzs for all rows\n");
     else
-      printf("ball (via matmat) has wrong number of nnzs for %d rows\n", nnz_diff.get_val());
+      printf("ball (via matvec) has wrong number of nnzs for %d rows\n", nnz_diff.get_val());
   }
 
-  // FIXME: giving MPI error
-  // Scalar<int64_t> diff;
-  // diff[""] += Bivar_Function<REAL,bvector<BALL_SIZE>,int64_t>([](REAL a, bvector<BALL_SIZE> b){ // TODO: check that vertex is correct
-  //     for (int i = 0; i < BALL_SIZE; ++i) {
-  //       if (fabs(b.closest_neighbors[i].dist - a) < EPSILON)
-  //         return 0;
-  //     }
-  //     return 1;
-  //   })((*C)["ij"], (*B)["i"]);
-  // delete C;
-  // return diff.get_val();
-  return -1;
+  Scalar<int64_t> diff;
+  diff[""] += Bivar_Function<REAL,bvector<BALL_SIZE>,int64_t>([](REAL a, bvector<BALL_SIZE> b){ // TODO: check that vertex is correct
+      for (int i = 0; i < BALL_SIZE; ++i) { // TODO: possibly incorrect if correct contains duplicate numbers
+        if (fabs(b.closest_neighbors[i].dist - a) < EPSILON)
+          return 0;
+      }
+      return 1;
+    })((*C)["ij"], (*B)["i"]);
+  delete C;
+  return diff.get_val();
 }
 
 int main(int argc, char** argv)
