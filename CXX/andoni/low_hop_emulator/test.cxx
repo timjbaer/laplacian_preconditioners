@@ -116,7 +116,7 @@ Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
     int plens[1] = { np };
     Partition part(1, plens);
     Idx_Partition blk;
-    B = new Matrix<bpair>(n, n, "ij", part["j"], blk, A->symm, *w, MIN_BPAIR); // FIXME: why is not part["i"]?
+    B = new Matrix<bpair>(n, n, "ij", part["i"], blk, A->symm, *w, MIN_BPAIR);
   } else { // default (2D) distribution
     B = new Matrix<bpair>(n, n, *w, MIN_BPAIR);
   }
@@ -320,7 +320,7 @@ int main(int argc, char** argv)
       int plens[1] = { np };
       Partition part(1, plens);
       Idx_Partition blk;
-      A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["j"], blk, B->symm, w, MIN_PLUS_SR); // FIXME: why is it not part["i"]?
+      A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
     } else { // default (2D) distribution
       A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     }

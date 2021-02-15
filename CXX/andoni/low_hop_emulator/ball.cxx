@@ -19,14 +19,14 @@ void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) 
   int64_t nwrite = 0;
   int64_t i = 0;
   while (i < npairs) {
-    int vertex = pairs[i].k / n;
+    int vertex = pairs[i].k % n;
     int j = i;
-    for (; j < i + b && j < npairs && pairs[j].k / n == vertex; ++j) {
+    for (; j < i + b && j < npairs && pairs[j].k % n == vertex; ++j) {
       wr_pairs[nwrite] = pairs[j];
       ++nwrite;
       assert(nwrite < npairs);
     }
-    while (j < npairs && pairs[j].k / n == vertex) {
+    while (j < npairs && pairs[j].k % n == vertex) {
       ++j;
     }
     i = j;
@@ -39,15 +39,21 @@ void filter(Matrix<REAL> * A, int b) {
   int n = A->nrow; 
   int64_t A_npairs;
   Pair<REAL> * A_pairs;
-  A->get_local_pairs(&A_npairs, &A_pairs, true); // FIXME: are get_local_pairs in sorted order by key?
+  A->get_local_pairs(&A_npairs, &A_pairs, true);
+  std::sort(A_pairs, A_pairs + A_npairs,
+        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int64_t n) -> bool
+                    { return first.k % n < second.k % n; }, 
+                    std::placeholders::_1, std::placeholders::_2, n)
+           );
+
   int np = A->wrld->np;
   int64_t off[(int)ceil(n/(float)np)+1];
-  int vertex = A_pairs[0].k / n;
+  int vertex = -1;
   int nrows = 0;
   for (int i = 0; i < A_npairs; ++i) {
-    if (A_pairs[i].k / n == vertex) {
+    if (A_pairs[i].k % n > vertex) {
       off[nrows] = i;
-      vertex += np;
+      vertex = A_pairs[i].k % n;
       ++nrows;
     }
   }
@@ -64,21 +70,15 @@ void filter(Matrix<REAL> * A, int b) {
                   [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
                     { return first.d < second.d; }
                     );
-    // std::partial_sort(A_pairs + i*n, A_pairs + i*n + b, A_pairs + (i+1)*n, 
-    //               [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
-    //                 { return first.d.dist < second.d.dist; }
-    //                 );
   }
   // if (A->wrld->rank == 0) {
-  //   printf("HERE\n");
-  //   for (int i = 0; i < A_npairs; ++i) {
-  //     printf("(%d %f)\n", A_pairs[i].k, A_pairs[i].d);
+  //   for (int64_t i = 0; i < A_npairs; ++i) {
+  //     printf("(%" PRId64 " %f)\n", A_pairs[i].k, A_pairs[i].d);
   //   }
   // }
-  // exit(1);
   (*A)["ij"] = MAX_REAL;
-  A->sparsify();
   write_first_b(A, A_pairs, A_npairs, b);
+  A->sparsify();
   delete [] A_pairs;
 }
 
