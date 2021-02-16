@@ -248,46 +248,61 @@ int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
   return s;
 }
  
-int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) { // assumes A and B on same 1D distribution
+int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   int n = A->nrow;
-  Matrix<REAL> * C = correct_ball(A, b);
-  if (A->wrld->rank == 0)
-    printf("correct:\n");
-  C->print_matrix();
-  Vector<int64_t> * C_nnzs = new Vector<int64_t>(n);
-  Vector<int64_t> * B_nnzs = new Vector<int64_t>(n);
-  (*C_nnzs)["i"] += Function<REAL,int64_t>([](REAL a){ return (int64_t) (fabs(MAX_REAL - a) >= EPSILON); })((*C)["ij"]);
-  (*B_nnzs)["i"] += Function<bvector<BALL_SIZE>,int64_t>([](bvector<BALL_SIZE> a){ 
-      int64_t nnz = 0;
-      for (int i = 0; i < BALL_SIZE; ++i) {
-        if (a.closest_neighbors[i].vertex != -1 && fabs(MAX_REAL - a.closest_neighbors[i].dist) >= EPSILON) // FIXME: quick fix to (2,\inf) problem
-          ++nnz;
-      }
-      return nnz;
-    })((*B)["i"]);
-  if (A->wrld->rank == 0) printf("C nnzs\n");
-  C_nnzs->print();
-  if (A->wrld->rank == 0) printf("B nnzs\n");
-  B_nnzs->print();
-  Scalar<int> nnz_diff;
-  nnz_diff[""] += Function<int64_t,int64_t,int>([](int64_t a, int64_t b){ return (int) (a != b); })((*C_nnzs)["i"],(*B_nnzs)["i"]);
-  if (A->wrld->rank == 0) {
-    if (!nnz_diff)
-      printf("ball (via matvec) has correct number of nnzs for all rows\n");
-    else
-      printf("ball (via matvec) has wrong number of nnzs for %d rows\n", nnz_diff.get_val());
+  int64_t B_npairs;
+  Pair<bvector<BALL_SIZE>> * B_pairs;
+  B->get_local_pairs(&B_npairs, &B_pairs, true);
+  int64_t C_npairs = 0;
+  Pair<REAL> C_pairs[B_npairs*b];
+  for (int64_t i = 0; i < B_npairs; ++i) {
+    for (int j = 0; j < b; ++j) {
+      C_pairs[C_npairs].k = B_pairs[i].k + B_pairs[i].d.closest_neighbors[j].vertex * n;
+      C_pairs[C_npairs].d = B_pairs[i].d.closest_neighbors[j].dist;
+      ++C_npairs;
+    }
   }
-
-  Scalar<int64_t> diff;
-  diff[""] += Bivar_Function<REAL,bvector<BALL_SIZE>,int64_t>([](REAL a, bvector<BALL_SIZE> b){ // TODO: check that vertex is correct
-      for (int i = 0; i < BALL_SIZE; ++i) { // TODO: possibly incorrect if correct contains duplicate numbers
-        if (fabs(b.closest_neighbors[i].dist - a) < EPSILON)
-          return 0;
-      }
-      return 1;
-    })((*C)["ij"], (*B)["i"]);
+  Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm, *(A->wrld), *(A->sr));
+  C->write(C_npairs, C_pairs);
+  int64_t s = check_ball(A, C, b);
   delete C;
-  return diff.get_val();
+  return s;
+
+  // Vector<int64_t> * C_nnzs = new Vector<int64_t>(n);
+  // Vector<int64_t> * B_nnzs = new Vector<int64_t>(n);
+  // (*C_nnzs)["i"] += Function<REAL,int64_t>([](REAL a){ return (int64_t) (fabs(MAX_REAL - a) >= EPSILON); })((*C)["ij"]);
+  // (*B_nnzs)["i"] += Function<bvector<BALL_SIZE>,int64_t>([](bvector<BALL_SIZE> a){ 
+  //     int64_t nnz = 0;
+  //     for (int i = 0; i < BALL_SIZE; ++i) {
+  //       if (a.closest_neighbors[i].vertex != -1 && fabs(MAX_REAL - a.closest_neighbors[i].dist) >= EPSILON) // FIXME: quick fix to (2,\inf) problem
+  //         ++nnz;
+  //     }
+  //     return nnz;
+  //   })((*B)["i"]);
+  // if (A->wrld->rank == 0) printf("C nnzs\n");
+  // C_nnzs->print();
+  // if (A->wrld->rank == 0) printf("B nnzs\n");
+  // B_nnzs->print();
+  // Scalar<int> nnz_diff;
+  // nnz_diff[""] += Function<int64_t,int64_t,int>([](int64_t a, int64_t b){ return (int) (a != b); })((*C_nnzs)["i"],(*B_nnzs)["i"]);
+  // if (A->wrld->rank == 0) {
+  //   if (!nnz_diff)
+  //     printf("ball (via matvec) has correct number of nnzs for all rows\n");
+  //   else
+  //     printf("ball (via matvec) has wrong number of nnzs for %d rows\n", nnz_diff.get_val());
+  // }
+
+  // // FIXME: why does below give an MPI_Allreduce error?
+  // Scalar<int64_t> diff;
+  // diff[""] += Bivar_Function<REAL,bvector<BALL_SIZE>,int64_t>([](REAL a, bvector<BALL_SIZE> b){ // TODO: check that vertex is correct
+  //     // for (int i = 0; i < BALL_SIZE; ++i) { // TODO: possibly incorrect if correct contains duplicate numbers
+  //     //   if (fabs(b.closest_neighbors[i].dist - a) < EPSILON)
+  //     //     return 0;
+  //     // }
+  //     return 1;
+  //   })((*C)["ij"], (*B)["i"]);
+  // delete C;
+  // return diff.get_val();
 }
 
 int main(int argc, char** argv)
