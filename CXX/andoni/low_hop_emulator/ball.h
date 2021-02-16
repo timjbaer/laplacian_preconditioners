@@ -10,7 +10,7 @@ using namespace CTF;
 typedef float REAL;
 #define MAX_REAL  (INT_MAX/2)
 #define EPSILON   0.01
-#define BALL_SIZE 4
+#define BALL_SIZE 8
 
 class bpair {
   public:
@@ -81,6 +81,8 @@ bvector<b> bvector_red(bvector<b> const * x, // TODO: multithread
   #pragma omp parallel for
 #endif
   for (int item = 0; item < nitems; ++item) {
+    if (x->closest_neighbors[0].dist >= y->closest_neighbors[b-1].dist)
+      continue;
     bvector<b> * y_prev = (bvector<b> *) malloc(sizeof(bvector<b>));
     for (int i = 0; i < b; ++i) {
       y_prev->closest_neighbors[i] = y[item].closest_neighbors[i];
@@ -217,7 +219,6 @@ Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_closest_edges(A, B);
-  A->sparsify();
 
   Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
     assert(e.vertex > -1 && e.dist < MAX_REAL); // since intersect_only = true

@@ -377,6 +377,7 @@ int main(int argc, char** argv)
             printf("ball (via matmat) done in %1.2lf\n", etime - stime);
         } else {
           Matrix<bpair> * B = real_to_bpair(A, d);
+          B->sparsify();
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
           Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(B);
