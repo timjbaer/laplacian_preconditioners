@@ -67,7 +67,7 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   } else seed = 1;
   srand(seed);
 
-  if (gfile != NULL){
+  if (gfile != NULL){ // TODO: have not checked for memory leaks
     int n_nnz = 0;
     if (w.rank == 0)
       printf("Reading real graph n = %lld\n", n);
@@ -104,6 +104,7 @@ void perturb(Matrix<REAL> * A) { // TODO: is this still necessary?
     }
   }
   A->write(A_npairs, A_loc_pairs); 
+  delete [] A_loc_pairs;
 }
 
 Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
@@ -257,6 +258,7 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   C->write(C_npairs, C_pairs);
   int64_t s = check_ball(A, C, b);
   delete C;
+  delete [] B_pairs;
   return s;
 
   // Vector<int64_t> * C_nnzs = new Vector<int64_t>(n);
@@ -383,7 +385,7 @@ int main(int argc, char** argv)
 #ifdef DEBUG
           if (w.rank == 0)
             printf("ball (via matvec):\n");
-          ball->print();
+          ball->print(); // FIXME: seems to cause a memory leak. possibly related to "Attempting to use an MPI routine after finalizing MPICH" error
           int64_t diff = check_ball(A, ball, b);
           if (w.rank == 0)
             printf("ball (via matvec) diff: %" PRId64 "\n", diff);

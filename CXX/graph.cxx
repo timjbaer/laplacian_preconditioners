@@ -15,6 +15,10 @@ Graph::Graph() {
   this->edges = new vector<Int64Pair>();
 }
 
+Graph::~Graph() {
+  delete this->edges;
+}
+
 Matrix<REAL>* Graph::adjacencyMatrix(World* world, bool sparse) {
   auto attr = 0;
   if (sparse) {
@@ -178,13 +182,14 @@ Matrix <REAL> * gen_rmat_matrix(World  & dw,
     inds[i] = (edge[2*i]+(edge[2*i+1])*n);
     //vals[i] = (rand()%max_ewht) + 1;
     //vals[i] = 1;
-    vals[i] = (rand()%10000) + 1;
+    vals[i] = (rand()%100) + 1;
   }
   if (dw.rank == 0) printf("filling CTF graph\n");
   A_pre->write(nedges,inds,vals);
   (*A_pre)["ij"] += (*A_pre)["ji"];
   free(inds);
   free(vals);
+  free(edge);
 
   return preprocess_graph(n,dw,A_pre,remove_singlets,n_nnz,max_ewht);
 }
@@ -270,5 +275,6 @@ Matrix<REAL>* generate_kronecker(World* w, int order)
     // hook on B
   }
   delete kinitiator;
+  delete g;
   return B;
 }
