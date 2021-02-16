@@ -211,19 +211,18 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
 }
 
 template<int b>
-Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) { // FIXME: (2,\inf) problem
+Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_closest_edges(A, B);
+  A->sparsify();
 
   Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
-    // assert(e.vertex > -1 && e.dist < MAX_REAL); // since intersect_only = true
+    assert(e.vertex > -1 && e.dist < MAX_REAL); // since intersect_only = true
     bvector<b> ret;
     for (int i = 0; i < b; ++i) {
-      if (e.vertex == -1) // FIXME: since intersect_only = true, should not be necessary... is ctf not doing float computation correctly to see if (-1, \inf)'s are addid?
-        continue;
       if (bvec.closest_neighbors[i].vertex == -1) {
         ret.closest_neighbors[i] = bvec.closest_neighbors[i];
       } else {

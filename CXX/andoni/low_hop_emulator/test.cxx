@@ -234,15 +234,6 @@ int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
   if (A->wrld->rank == 0)
     printf("correct:\n");
   correct->print_matrix();
-  // printf("A\n");
-  // A->print_matrix();
-  // printf("B\n");
-  // B->wrld = A->wrld;
-  // B->print_matrix();
-  // printf("correct\n");
-  // correct->print_matrix();
-  B->wrld = A->wrld; // FIXME: why does B's world become NULL?
-  correct->wrld = A->wrld; // FIXME: why does correct's world become NULL?
   int64_t s = are_matrices_different(correct, B);
   delete correct;
   return s;
