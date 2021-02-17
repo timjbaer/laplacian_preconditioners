@@ -160,14 +160,66 @@ Monoid< bvector<b> > get_bvector_monoid() {
   return m;
 }
 
+// template<int b>
+// void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
+//   int n = A->nrow; 
+//   int64_t A_npairs;
+//   Pair<bpair> * A_pairs;
+//   A->get_local_pairs(&A_npairs, &A_pairs, true);
+//   std::sort(A_pairs, A_pairs + A_npairs,
+//         std::bind([](Pair<bpair> const & first, Pair<bpair> const & second, int64_t n) -> bool
+//                     { return first.k % n < second.k % n; }, 
+//                     std::placeholders::_1, std::placeholders::_2, n)
+//            );
+// 
+//   int np = A->wrld->np;
+//   int64_t off[(int)ceil(n/(float)np)+1];
+//   int vertex = -1;
+//   int nrows = 0;
+//   for (int i = 0; i < A_npairs; ++i) {
+//     if (A_pairs[i].k % n > vertex) {
+//       off[nrows] = i;
+//       vertex = A_pairs[i].k % n;
+//       ++nrows;
+//     }
+//   }
+//   off[nrows] = A_npairs;
+// #ifdef _OPENMP
+//   #pragma omp parallel for
+// #endif
+//   for (int64_t i = 0; i < nrows; ++i) { // sort to filter b closest edges
+//     int nedges = off[i+1] - off[i];
+//     int64_t first = off[i];
+//     int64_t middle = off[i] + (nedges < b ? nedges : b);
+//     int64_t last = off[i] + nedges;
+//     std::partial_sort(A_pairs + first, A_pairs + middle, A_pairs + last, 
+//                   [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
+//                     { return first.d.dist < second.d.dist; }
+//                     );
+//   }
+//   Pair<bvector<b>> bvecs[nrows];
+// #ifdef _OPENMP
+//   #pragma omp parallel for
+// #endif
+//   for (int i = 0; i < nrows; ++i) {
+//     bvecs[i].k = A_pairs[off[i]].k % n;
+//     int nedges = off[i+1] - off[i];
+//     for (int j = 0; j < (nedges < b ? nedges : b); ++j) {
+//       bvecs[i].d.closest_neighbors[j] = A_pairs[off[i] + j].d;
+//     }
+//   }
+//   B->write(nrows, bvecs); 
+//   delete [] A_pairs;
+// }
+
 template<int b>
-void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
+void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   int n = A->nrow; 
   int64_t A_npairs;
-  Pair<bpair> * A_pairs;
+  Pair<REAL> * A_pairs;
   A->get_local_pairs(&A_npairs, &A_pairs, true);
   std::sort(A_pairs, A_pairs + A_npairs,
-        std::bind([](Pair<bpair> const & first, Pair<bpair> const & second, int64_t n) -> bool
+        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int64_t n) -> bool
                     { return first.k % n < second.k % n; }, 
                     std::placeholders::_1, std::placeholders::_2, n)
            );
@@ -193,8 +245,8 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
     int64_t middle = off[i] + (nedges < b ? nedges : b);
     int64_t last = off[i] + nedges;
     std::partial_sort(A_pairs + first, A_pairs + middle, A_pairs + last, 
-                  [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
-                    { return first.d.dist < second.d.dist; }
+                  [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
+                    { return first.d < second.d; }
                     );
   }
   Pair<bvector<b>> bvecs[nrows];
@@ -205,7 +257,8 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
     bvecs[i].k = A_pairs[off[i]].k % n;
     int nedges = off[i+1] - off[i];
     for (int j = 0; j < (nedges < b ? nedges : b); ++j) {
-      bvecs[i].d.closest_neighbors[j] = A_pairs[off[i] + j].d;
+      bvecs[i].d.closest_neighbors[j].vertex = A_pairs[off[i] + j].k / n;
+      bvecs[i].d.closest_neighbors[j].dist = A_pairs[off[i] + j].d;
     }
   }
   B->write(nrows, bvecs); 
@@ -213,25 +266,20 @@ void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
 }
 
 template<int b>
-Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
+Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A) {
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_closest_edges(A, B);
 
-  Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
-    assert(e.vertex > -1 && e.dist < MAX_REAL); // since intersect_only = true
-    bvector<b> ret;
+  Bivar_Function<REAL,bvector<b>,bvector<b>> relax([](REAL a, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
+    assert(fabs(MAX_REAL - a) >= EPSILON); // since intersect_only = true
     for (int i = 0; i < b; ++i) {
-      if (bvec.closest_neighbors[i].vertex == -1) {
-        ret.closest_neighbors[i] = bvec.closest_neighbors[i];
-      } else {
-        ret.closest_neighbors[i].vertex = bvec.closest_neighbors[i].vertex;
-        ret.closest_neighbors[i].dist = e.dist + bvec.closest_neighbors[i].dist;
-      }
+      if (bvec.closest_neighbors[i].vertex > -1)
+        bvec.closest_neighbors[i].dist = a + bvec.closest_neighbors[i].dist;
     }
-    return ret;
+    return bvec;
   });
   relax.intersect_only = true;
 

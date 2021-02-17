@@ -107,33 +107,33 @@ void perturb(Matrix<REAL> * A) { // TODO: is this still necessary?
   delete [] A_loc_pairs;
 }
 
-Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
-  int n = A->nrow;
-  World * w = A->wrld;
-  int np = A->wrld->np;
-  const static Monoid<bpair> MIN_BPAIR = get_bpair_monoid();
-  Matrix<bpair> * B;
-  if (d == 1) { // 1D distribution (block along rows)
-    int plens[1] = { np };
-    Partition part(1, plens);
-    Idx_Partition blk;
-    B = new Matrix<bpair>(n, n, "ij", part["i"], blk, A->symm, *w, MIN_BPAIR);
-  } else { // default (2D) distribution
-    B = new Matrix<bpair>(n, n, *w, MIN_BPAIR);
-  }
-  int64_t npairs;
-  Pair<REAL> * A_loc_pairs;
-  A->get_local_pairs(&npairs, &A_loc_pairs, true);
-  Pair<bpair> B_loc_pairs[npairs];
-  for (int i = 0; i < npairs; ++i) {
-    B_loc_pairs[i].k = A_loc_pairs[i].k;
-    B_loc_pairs[i].d.vertex = A_loc_pairs[i].k / n;
-    B_loc_pairs[i].d.dist = A_loc_pairs[i].d;
-  }
-  B->write(npairs, B_loc_pairs);
-  delete [] A_loc_pairs;
-  return B;
-}
+// Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
+//   int n = A->nrow;
+//   World * w = A->wrld;
+//   int np = A->wrld->np;
+//   const static Monoid<bpair> MIN_BPAIR = get_bpair_monoid();
+//   Matrix<bpair> * B;
+//   if (d == 1) { // 1D distribution (block along rows)
+//     int plens[1] = { np };
+//     Partition part(1, plens);
+//     Idx_Partition blk;
+//     B = new Matrix<bpair>(n, n, "ij", part["i"], blk, A->symm, *w, MIN_BPAIR);
+//   } else { // default (2D) distribution
+//     B = new Matrix<bpair>(n, n, *w, MIN_BPAIR);
+//   }
+//   int64_t npairs;
+//   Pair<REAL> * A_loc_pairs;
+//   A->get_local_pairs(&npairs, &A_loc_pairs, true);
+//   Pair<bpair> B_loc_pairs[npairs];
+//   for (int i = 0; i < npairs; ++i) {
+//     B_loc_pairs[i].k = A_loc_pairs[i].k;
+//     B_loc_pairs[i].d.vertex = A_loc_pairs[i].k / n;
+//     B_loc_pairs[i].d.dist = A_loc_pairs[i].d;
+//   }
+//   B->write(npairs, B_loc_pairs);
+//   delete [] A_loc_pairs;
+//   return B;
+// }
 
 // void test_ball_red() { // run on one process
 //   printf("test ball reduction\n");
@@ -331,6 +331,7 @@ int main(int argc, char** argv)
     // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring
     (*A)["ii"] = MAX_REAL;
+    A->sparsify();
     delete B;
     if (getCmdOption(input_str, input_str+in_num, "-b")){
       b = atoi(getCmdOption(input_str, input_str+in_num, "-b"));
@@ -376,11 +377,9 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matmat) done in %1.2lf\n", etime - stime);
         } else {
-          Matrix<bpair> * B = real_to_bpair(A, d);
-          B->sparsify();
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
-          Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(B);
+          Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A);
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matvec);
 #ifdef DEBUG
@@ -392,7 +391,6 @@ int main(int argc, char** argv)
             printf("ball (via matvec) diff: %" PRId64 "\n", diff);
 #endif
           delete ball;
-          delete B;
           if (w.rank == 0)
             printf("ball (via matvec) done in %1.2lf\n", etime - stime);
         }
