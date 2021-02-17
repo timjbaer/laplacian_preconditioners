@@ -273,18 +273,36 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A) {
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_closest_edges(A, B);
 
-  Bivar_Function<REAL,bvector<b>,bvector<b>> relax([](REAL a, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
-    assert(fabs(MAX_REAL - a) >= EPSILON); // since intersect_only = true
-    for (int i = 0; i < b; ++i) {
-      if (bvec.closest_neighbors[i].vertex > -1)
-        bvec.closest_neighbors[i].dist = a + bvec.closest_neighbors[i].dist;
-    }
-    return bvec;
-  });
-  relax.intersect_only = true;
+  // Bivar_Function<REAL,bvector<b>,bvector<b>> relax([](REAL a, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
+  //   assert(fabs(MAX_REAL - a) >= EPSILON); // since intersect_only = true
+  //   for (int i = 0; i < b; ++i) {
+  //     if (bvec.closest_neighbors[i].vertex > -1)
+  //       bvec.closest_neighbors[i].dist = a + bvec.closest_neighbors[i].dist;
+  //   }
+  //   return bvec;
+  // });
+  // relax.intersect_only = true;
 
+  // for (int i = 0; i < b; ++i) {
+  //   (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+  // }
+
+  std::function<bvector<b>(bvector<b>,REAL,bvector<b>)> f = [](bvector<b> other, REAL a, bvector<b> me){ // me and other are switched since CTF stores col-first
+    assert(fabs(MAX_REAL - a) >= EPSILON);
+    if (other.closest_neighbors[0].dist + a >= me.closest_neighbors[b-1].dist)
+      return me;
+    for (int i = 0; i < b; ++i) {
+      if (other.closest_neighbors[i].vertex > -1)
+        other.closest_neighbors[i].dist = a + other.closest_neighbors[i].dist;
+    }
+    // comment out below 2 lines and uncomment 3rd line to recover original algorithm (with additional overhead)
+    bvector_red<b>(&other, &me, 1);
+    return me;
+    // return other;
+  };
+  Tensor<bvector<b>> * vec_list[2] = {B, B};
   for (int i = 0; i < b; ++i) {
-    (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+    Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
   }
 
   return B;

@@ -249,9 +249,11 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   Pair<REAL> C_pairs[B_npairs*b];
   for (int64_t i = 0; i < B_npairs; ++i) {
     for (int j = 0; j < b; ++j) {
-      C_pairs[C_npairs].k = B_pairs[i].k + B_pairs[i].d.closest_neighbors[j].vertex * n;
-      C_pairs[C_npairs].d = B_pairs[i].d.closest_neighbors[j].dist;
-      ++C_npairs;
+      if (B_pairs[i].d.closest_neighbors[j].vertex > -1) {
+        C_pairs[C_npairs].k = B_pairs[i].k + B_pairs[i].d.closest_neighbors[j].vertex * n;
+        C_pairs[C_npairs].d = B_pairs[i].d.closest_neighbors[j].dist;
+        ++C_npairs;
+      }
     }
   }
   Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm, *(A->wrld), *(A->sr));

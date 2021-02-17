@@ -11,10 +11,12 @@ def main():
     # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
     N = 128 
     PLOT = False
+    K = -1
 
     parser = argparse.ArgumentParser(
         description="""This script runs AMG on the laplacian of a specified graph""")
     parser.add_argument("-n", help="number of grid points")
+    parser.add_argument("-k", help="kronecker graph of size 3**k")
     parser.add_argument("-plot", help="1 to show plot")
     args = parser.parse_args()
 
@@ -22,7 +24,22 @@ def main():
     if args.plot != None: 
         if int(args.plot) == 1:
             PLOT = True 
+    if args.k != None: K = int(args.k)
 
+    n = 3**K
+    N = int(n**.5) + 2
+
+    # generate Kronecker problem
+    #A = model.kronecker(K)
+
+    n = nrand = 50
+    A = model.rand_laplacian(nrand)
+
+    # set guess and RHS of system
+    x = np.random.rand(n) 
+    f = np.ones(n)
+
+    """
     print("number of grid points N: " + str(N))
 
     # total number of grid spaces
@@ -38,6 +55,7 @@ def main():
     # set guess and RHS of system
     x = np.random.rand(nf**2) 
     f = np.ones(nf**2)
+    """
 
     # direct solve
     u = sla.spsolve(A,f)
@@ -51,7 +69,7 @@ def main():
     cgiter = 3
 
     if not PLOT:
-        print("\n=== Two level multigrid (w exact solve) ===")
+        print("\n=== Two level multigrid ===")
         u_v3_j,_,_ = multigrid.v_cycle_3lvls(A,x,f,1,iter_array[-1],N,0)
         u_v3_wj,_,_ = multigrid.v_cycle_3lvls(A,x,f,w,iter_array[-1],N,0)
         u_v3_gs,_,_ = multigrid.v_cycle_3lvls(A,x,f,1,iter_array[-1],N,1)
@@ -59,7 +77,7 @@ def main():
         print("Two level multigrid wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
         print("Two level multigrid Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
 
-        print("\n=== V-cycle (w exact solve) ===")
+        print("\n=== V-cycle ===")
         u_v3_j = multigrid.v_cycle(A,x,f,1,iter_array[-1],numlvls,0)
         u_v3_wj = multigrid.v_cycle(A,x,f,w,iter_array[-1],numlvls,0)
         u_v3_gs = multigrid.v_cycle(A,x,f,1,iter_array[-1],numlvls,1)
@@ -67,18 +85,17 @@ def main():
         print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
         print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
 
-
         print("\n=== Preconitioned Conjugate Gradient ===")
         u_v3_pcg_mg = pcg.pcg(A,x,f,N,cgiter=cgiter,accel="mg")
         u_v3_pcg_v = pcg.pcg(A,x,f,N,cgiter=cgiter,accel="v_cycle",numlvls=numlvls)
         u_v3_pcg_agg = pcg.pcg(A, x, f, N, accel="agg", numlvls=numlvls)
-        print("PCG with Multigrid Gauss-Seidel error (w exact solve): " + str(la.norm(u_v3_pcg_mg - u)/la.norm(u)))
-        print("PCG with V cycle Gauss-Seidel error (w/o exact solve): " + str(la.norm(u_v3_pcg_v - u)/la.norm(u)))
+        print("PCG with Multigrid Gauss-Seidel error: " + str(la.norm(u_v3_pcg_mg - u)/la.norm(u)))
+        print("PCG with V cycle Gauss-Seidel error: " + str(la.norm(u_v3_pcg_v - u)/la.norm(u)))
         print("PCG with pairwise agg Gauss-Seidel error: " + str(la.norm(u_v3_pcg_agg - u)/la.norm(u)))
 
     else:
         #Npts = [2**i for i in range(5,8)]
-        Npts = [2**i for i in range(3,5)]
+        Npts = [2**i for i in range(3,6)]
 
         err_mg = [] # 2-level multigrid with Gauss-Seidel
         err_vc = [] # V-cycle with Gauss-Seidel
@@ -92,7 +109,7 @@ def main():
             nc = (n+1)//2 - 1
 
             # setup problem of size n
-            A = model.poisson_2d(nf)
+            A = -1.*model.poisson_2d(nf)
             x = np.random.rand(nf**2) 
             f = np.ones(nf**2)        
 

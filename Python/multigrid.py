@@ -161,7 +161,7 @@ def v_cycle(A,x,f,w,numiter,numlvls=1,ind=0,exact_solve=True):
 def v_cycle_3lvls(A,f,x,w,numiter,N,ind):
     # form multigrid operators for all levels
     nf = int(A.shape[0]**.5)     # number of grids along an axis @ curr lvl
-    assert(nf == A.shape[0]**.5) # ensure is square
+    #assert(nf == A.shape[0]**.5) # ensure is square
     n  = nf+1
     nc1 = (n+1)//2 - 1            # number of grid points in coarse lvl 1
     nc2 = (nc1+1)//2 - 1          # number of grid points in coarse lvl 2
@@ -202,87 +202,3 @@ def v_cycle_3lvls(A,f,x,w,numiter,N,ind):
 
     u = smooth(A,u,f,w,numiter) # post-smoothing
     return u, A1, A2
-
-#from test import mat_2d
-#
-#if __name__ == "__main__":
-#    N = 32  # number of grid points (if fix boundary conditions, u_0=u_n=0, then N-2 DOFs)
-#    n = N-1 # number of grid spaces
-#    nf = n-1
-#    nc = (n+1)//2 - 1
-#
-#    # setup problem system, Au=f
-#    a = 0; b = 1
-#    A = mat_2d(N,a,b)         # Poisson problem
-#    x = np.random.rand(nf**2) # Initial guess
-#    f = np.ones(nf**2)        # solution vector
-#
-#    # direct solve
-#    u = sla.spsolve(A,f)
-#    r = A@u - f
-#
-#    # multigrid acceleration
-#    w = 2./3
-#    iter_array = [2**k for k in range(7)]
-#
-#    err_v3_j = []
-#    err_v3_wj = []
-#    err_v3_gs = []
-#
-#    show_plot = False
-#    numlvls=2
-#    if not show_plot:
-#        u_v3_j,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,0)
-#        u_v3_wj,_,_ = multigrid_v3(A,x,f,w,iter_array[-1],N,0)
-#        u_v3_gs,_,_ = multigrid_v3(A,x,f,1,iter_array[-1],N,1)
-#
-#        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
-#        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
-#        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
-#
-#        print("\n=== Alt methods (w/o exact solve) ===")
-#
-#        u_v3_j = v_cycle(A,x,f,1,iter_array[-1],numlvls,0)
-#        u_v3_wj = v_cycle(A,x,f,w,iter_array[-1],numlvls,0)
-#        u_v3_gs = v_cycle(A,x,f,1,iter_array[-1],numlvls,1)
-#
-#        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
-#        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
-#        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
-#
-#        print("\n=== Alt methods (w exact solve) ===")
-#
-#        u_v3_j = v_cycle(A,x,f,1,iter_array[-1],numlvls,0,exact_solve=True)
-#        u_v3_wj = v_cycle(A,x,f,w,iter_array[-1],numlvls,0,exact_solve=True)
-#        u_v3_gs = v_cycle(A,x,f,1,iter_array[-1],numlvls,1,exact_solve=True)
-#
-#        print("V cycle Jacobi error: " + str(la.norm(u_v3_j - u)/la.norm(u)))
-#        print("V cycle wtd Jacobi error: " + str(la.norm(u_v3_wj - u)/la.norm(u)))
-#        print("V cycle Gauss-Seidel error: " + str(la.norm(u_v3_gs - u)/la.norm(u)))
-#
-#    else:
-#        for numiter in iter_array:
-#            u_v3_j,_,_ = multigrid_v3(A,x,f,1,numiter,N,0)
-#            u_v3_wj,_,_ = multigrid_v3(A,x,f,w,numiter,N,0)
-#            u_v3_gs,_,_ = multigrid_v3(A,x,f,1,numiter,N,1)
-#
-#            """ Recursive v-cycle code
-#            u_v3_j = v_cycle(A,x,f,1,numiter,numlvls,0,exact_solve=True)
-#            u_v3_wj = v_cycle(A,x,f,w,numiter,numlvls,0,exact_solve=True)
-#            u_v3_gs = v_cycle(A,x,f,1,numiter,numlvls,1,exact_solve=True)
-#            """
-#
-#            err_v3_j.append(la.norm(u_v3_j -u)/la.norm(u))
-#            err_v3_wj.append(la.norm(u_v3_wj -u)/la.norm(u))
-#            err_v3_gs.append(la.norm(u_v3_gs -u)/la.norm(u))
-#
-#        # plot the errors
-#        plt.figure()
-#        plt.semilogy(iter_array,err_v3_j,label = 'V cycle Jacobi', color = 'b', linestyle = '-')
-#        plt.semilogy(iter_array,err_v3_wj,label = 'V cycle wtd Jacobi', color = 'g', linestyle = '-')
-#        plt.semilogy(iter_array,err_v3_gs,label = 'V cycle Gauss-Seidel', color = 'r', linestyle = '-')
-#        plt.title('Multigrid error vs iteration')
-#        plt.ylabel('Error')
-#        plt.xlabel('Number of smoother iterations')
-#        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-#        plt.show()
