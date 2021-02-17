@@ -103,3 +103,21 @@ def twod_model_with_stencil(stencil,n):
     ]
     
     return sp.kron(I_sup,B_sup) + sp.kron(I_main,B_main) + sp.kron(I_sub,B_sub)
+
+def kronecker(k):
+    """ Given a Kroncker k, return a sparse Kronecker matrix of size 3**k """
+    n = 3**k
+    print("Kronecker graph of size: " + str(n))
+    G = sp.csr_matrix([[1, 1, 0],
+                       [1, 1, 1],
+                       [0, 1, 1]])
+    A = G
+    for i in range(k - 1):
+        A = sp.kron(G, A)
+    return A
+
+def rand_laplacian(n):
+    """ Given an adjacency matrix A, return the corresponding Laplacian matrix """
+    A = sp.random(n, n, density=0.2, format='csr')
+    A = A @ A.T / 2
+    return A

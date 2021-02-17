@@ -18,6 +18,8 @@ def pcg(A, x, f, N, cgiter=5, accel="mg", numlvls=2):
     u = np.zeros(x.size, dtype=float)
     if accel == "mg":
         z,_,_ = multigrid.v_cycle_3lvls(A, r, u, 1, 2**2, N, 1) # Mz = r
+    elif accel == "agg":
+        z,_,_ = agg.agg_multigrid(A, r, u, 1, 2**2, N, 1) # Mz = r
     else:
         z = multigrid.v_cycle(A,u,r,1,2**2,numlvls,1) # Mz = r
     p = z
