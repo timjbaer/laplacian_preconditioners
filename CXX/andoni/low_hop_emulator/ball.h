@@ -77,6 +77,8 @@ template<int b>
 bvector<b> bvector_red(bvector<b> const * x, // TODO: multithread
                  bvector<b> * y,
                  int nitems){
+  Timer t_bvector_red("bvector_red");
+  t_bvector_red.start();
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
@@ -136,6 +138,7 @@ bvector<b> bvector_red(bvector<b> const * x, // TODO: multithread
     }
     free(y_prev);
   }
+  t_bvector_red.stop();
   return *y;
 }
 
@@ -214,6 +217,8 @@ Monoid< bvector<b> > get_bvector_monoid() {
 
 template<int b>
 void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
+  Timer t_init_closest_edges("init_closest_edges");
+  t_init_closest_edges.start();
   int n = A->nrow; 
   int64_t A_npairs;
   Pair<REAL> * A_pairs;
@@ -263,6 +268,7 @@ void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   }
   B->write(nrows, bvecs); 
   delete [] A_pairs;
+  t_init_closest_edges.stop();
 }
 
 template<int b>
