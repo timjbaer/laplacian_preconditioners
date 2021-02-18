@@ -59,6 +59,8 @@ void destroy_mpi() {
 
 // TODO: add function (without sorting) to convert Matrix<REAL> * to ball_t *
 ball_t * filter(Matrix<REAL> * A, int b) {
+  Timer t_filter("filter");
+  t_filter.start();
   // assert(A->symm != SY);
   // assert(A->edge_map[0].type == CTF_int::PHYSICAL_MAP);
   int n = A->nrow;
@@ -106,6 +108,7 @@ ball_t * filter(Matrix<REAL> * A, int b) {
 
   delete [] A_loc_pairs;
 
+  t_filter.stop();
   return ball;
 }
 
@@ -221,8 +224,11 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min
   int symm = A->symm;
   World wrld = *(A->wrld);
   Matrix<REAL> * B = new Matrix<REAL>(*A);
+  Timer t_matmat("matmat");
   for (int i = 0; i < log2(B->nrow); ++i) { // TODO: clear B instead of reallocating it
+    t_matmat.start();
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+    t_matmat.stop();
     ball_t * ball = filter(B, b);
     delete B;
     B = new Matrix<REAL>(n, n, symm, wrld, MIN_PLUS_SR);
