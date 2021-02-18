@@ -36,6 +36,8 @@ void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) 
 
 /***** filter b closest neighbors *****/
 void filter(Matrix<REAL> * A, int b) {
+  Timer t_filter("filter");
+  t_filter.start();
   int n = A->nrow; 
   int64_t A_npairs;
   Pair<REAL> * A_pairs;
@@ -80,6 +82,7 @@ void filter(Matrix<REAL> * A, int b) {
   write_first_b(A, A_pairs, A_npairs, b);
   A->sparsify();
   delete [] A_pairs;
+  t_filter.stop();
 }
 
 /***** matmat approach *****/
@@ -88,8 +91,11 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min
   int symm = A->symm;
   World wrld = *(A->wrld);
   Matrix<REAL> * B = new Matrix<REAL>(*A);
+  Timer t_matmat("matmat");
   for (int i = 0; i < log2(B->nrow); ++i) {
+    t_matmat.start();
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+    t_matmat.stop();
     filter(B, b);
   }
   return B;
