@@ -1,4 +1,4 @@
-CTFDIR    = /Users/timbaer/lpna/raghavendrak-ctf
+CTFDIR    =
 MPI_DIR   =
 CXX       = mpicxx -cxx=g++
 OPTS      = -O0 -g
