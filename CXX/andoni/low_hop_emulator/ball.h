@@ -27,7 +27,7 @@ static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
       return a + b;
     });
 
-Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b);
+Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b);
 
 /***** common *****/
 class bpair {
@@ -71,7 +71,7 @@ namespace CTF {
 }
 
 template<int b>
-bvector<b> bvector_red(bvector<b> const * x, // TODO: multithread
+bvector<b> bvector_red(bvector<b> const * x, // TODO: optimize merging of sorted lists
                  bvector<b> * y,
                  int nitems){
   Timer t_bvector_red("bvector_red");
@@ -161,7 +161,7 @@ Monoid< bvector<b> > get_bvector_monoid() {
 }
 
 template<int b>
-void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
+void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) { // TODO: refactor from filter
   Timer t_init_closest_edges("init_closest_edges");
   t_init_closest_edges.start();
   int n = A->nrow; 
@@ -169,7 +169,7 @@ void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   Pair<REAL> * A_pairs;
   A->get_local_pairs(&A_npairs, &A_pairs, true);
   std::sort(A_pairs, A_pairs + A_npairs,
-        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int64_t n) -> bool
+        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int n) -> bool
                     { return first.k % n < second.k % n; }, 
                     std::placeholders::_1, std::placeholders::_2, n)
            );
@@ -178,7 +178,7 @@ void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   int64_t off[(int)ceil(n/(float)np)+1];
   int vertex = -1;
   int nrows = 0;
-  for (int i = 0; i < A_npairs; ++i) {
+  for (int64_t i = 0; i < A_npairs; ++i) {
     if (A_pairs[i].k % n > vertex) {
       off[nrows] = i;
       vertex = A_pairs[i].k % n;
@@ -189,7 +189,7 @@ void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
-  for (int64_t i = 0; i < nrows; ++i) { // sort to filter b closest edges
+  for (int i = 0; i < nrows; ++i) { // sort to filter b closest edges
     int nedges = off[i+1] - off[i];
     int64_t first = off[i];
     int64_t middle = off[i] + (nedges < b ? nedges : b);

@@ -94,20 +94,18 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   return A;
 }
 
-void perturb(Matrix<REAL> * A) { // TODO: is this still necessary?
+void perturb(Matrix<REAL> * A) {
   int64_t A_npairs;
   Pair<REAL> * A_loc_pairs;
   A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
-  for (int i = 0; i < A_npairs; ++i) {
-    if (A_loc_pairs[i].d != 0) { // TODO: should be unnecessary if get_local_pairs only returns nonzeros
-      A_loc_pairs[i].d += rand() / (REAL) RAND_MAX;
-    }
+  for (int64_t i = 0; i < A_npairs; ++i) {
+    A_loc_pairs[i].d += rand() / (REAL) RAND_MAX;
   }
   A->write(A_npairs, A_loc_pairs); 
   delete [] A_loc_pairs;
 }
 
-int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B) // TODO: may need to consider sparsity like mst are_vectors_different()
+int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B)
 {
   Scalar<int64_t> s;
   s[""] += Function<REAL,REAL,int64_t>([](REAL a, REAL b){ return (int64_t) fabs(a - b) >= EPSILON; })((*A)["ij"],(*B)["ij"]);
@@ -155,42 +153,6 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   delete C;
   delete [] B_pairs;
   return s;
-
-  // Vector<int64_t> * C_nnzs = new Vector<int64_t>(n);
-  // Vector<int64_t> * B_nnzs = new Vector<int64_t>(n);
-  // (*C_nnzs)["i"] += Function<REAL,int64_t>([](REAL a){ return (int64_t) (fabs(MAX_REAL - a) >= EPSILON); })((*C)["ij"]);
-  // (*B_nnzs)["i"] += Function<bvector<BALL_SIZE>,int64_t>([](bvector<BALL_SIZE> a){ 
-  //     int64_t nnz = 0;
-  //     for (int i = 0; i < BALL_SIZE; ++i) {
-  //       if (a.closest_neighbors[i].vertex != -1 && fabs(MAX_REAL - a.closest_neighbors[i].dist) >= EPSILON) // FIXME: quick fix to (2,\inf) problem
-  //         ++nnz;
-  //     }
-  //     return nnz;
-  //   })((*B)["i"]);
-  // if (A->wrld->rank == 0) printf("C nnzs\n");
-  // C_nnzs->print();
-  // if (A->wrld->rank == 0) printf("B nnzs\n");
-  // B_nnzs->print();
-  // Scalar<int> nnz_diff;
-  // nnz_diff[""] += Function<int64_t,int64_t,int>([](int64_t a, int64_t b){ return (int) (a != b); })((*C_nnzs)["i"],(*B_nnzs)["i"]);
-  // if (A->wrld->rank == 0) {
-  //   if (!nnz_diff)
-  //     printf("ball (via matvec) has correct number of nnzs for all rows\n");
-  //   else
-  //     printf("ball (via matvec) has wrong number of nnzs for %d rows\n", nnz_diff.get_val());
-  // }
-
-  // // FIXME: why does below give an MPI_Allreduce error?
-  // Scalar<int64_t> diff;
-  // diff[""] += Bivar_Function<REAL,bvector<BALL_SIZE>,int64_t>([](REAL a, bvector<BALL_SIZE> b){ // TODO: check that vertex is correct
-  //     // for (int i = 0; i < BALL_SIZE; ++i) { // TODO: possibly incorrect if correct contains duplicate numbers
-  //     //   if (fabs(b.closest_neighbors[i].dist - a) < EPSILON)
-  //     //     return 0;
-  //     // }
-  //     return 1;
-  //   })((*C)["ij"], (*B)["i"]);
-  // delete C;
-  // return diff.get_val();
 }
 
 int main(int argc, char** argv)
@@ -201,7 +163,7 @@ int main(int argc, char** argv)
   int b=BALL_SIZE;
   int bvec=0;
   int multi=0;
-  int d=2;
+  // int d=1;
 
   int rank;
   int np;
@@ -211,19 +173,19 @@ int main(int argc, char** argv)
   {
     World w(argc, argv);
     Matrix<REAL> * B = get_graph(argc, argv, w);
-    if (getCmdOption(input_str, input_str+in_num, "-d")){
-      d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
-      if (d < 1 || d > 2) d = 2;
-    }
+    // if (getCmdOption(input_str, input_str+in_num, "-d")){
+    //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
+    //   if (d < 1 || d > 2) d = 2;
+    // }
     Matrix<REAL> * A;
-    if (d == 1) { // 1D distribution (block along rows)
+    // if (d == 1) { // 1D distribution (block along rows)
       int plens[1] = { np };
       Partition part(1, plens);
       Idx_Partition blk;
       A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
-    } else { // default (2D) distribution
-      A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
-    }
+    // } else { // default (2D) distribution
+    //   A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
+    // }
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring
     (*A)["ii"] = MAX_REAL;
     A->sparsify();
@@ -278,7 +240,7 @@ int main(int argc, char** argv)
         } else {
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
-          Vector<bvector<BALL_SIZE>> * ball;
+          Vector<bvector<BALL_SIZE>> * ball = nullptr;
           if (bvec)
             ball = ball_bvector<BALL_SIZE>(A);
           else if (multi)

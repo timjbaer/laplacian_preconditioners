@@ -8,7 +8,7 @@ void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) 
   int64_t i = 0;
   while (i < npairs) {
     int vertex = pairs[i].k % n;
-    int j = i;
+    int64_t j = i;
     for (; j < i + b && j < npairs && pairs[j].k % n == vertex; ++j) {
       wr_pairs[nwrite] = pairs[j];
       ++nwrite;
@@ -30,7 +30,7 @@ void filter(Matrix<REAL> * A, int b) {
   Pair<REAL> * A_pairs;
   A->get_local_pairs(&A_npairs, &A_pairs, true);
   std::sort(A_pairs, A_pairs + A_npairs,
-        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int64_t n) -> bool
+        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int n) -> bool
                     { return first.k % n < second.k % n; }, 
                     std::placeholders::_1, std::placeholders::_2, n)
            );
@@ -39,7 +39,7 @@ void filter(Matrix<REAL> * A, int b) {
   int64_t off[(int)ceil(n/(float)np)+1];
   int vertex = -1;
   int nrows = 0;
-  for (int i = 0; i < A_npairs; ++i) {
+  for (int64_t i = 0; i < A_npairs; ++i) {
     if (A_pairs[i].k % n > vertex) {
       off[nrows] = i;
       vertex = A_pairs[i].k % n;
@@ -50,7 +50,7 @@ void filter(Matrix<REAL> * A, int b) {
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
-  for (int64_t i = 0; i < nrows; ++i) { // sort to filter b closest edges
+  for (int i = 0; i < nrows; ++i) { // sort to filter b closest edges
     int nedges = off[i+1] - off[i];
     int64_t first = off[i];
     int64_t middle = off[i] + (nedges < b ? nedges : b);
@@ -60,11 +60,6 @@ void filter(Matrix<REAL> * A, int b) {
                     { return first.d < second.d; }
                     );
   }
-  // if (A->wrld->rank == 0) {
-  //   for (int64_t i = 0; i < A_npairs; ++i) {
-  //     printf("(%" PRId64 " %f)\n", A_pairs[i].k, A_pairs[i].d);
-  //   }
-  // }
   (*A)["ij"] = MAX_REAL;
   write_first_b(A, A_pairs, A_npairs, b);
   A->sparsify();
@@ -73,13 +68,11 @@ void filter(Matrix<REAL> * A, int b) {
 }
 
 /***** matmat *****/
-Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min, +) semiring
+Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b) { // A should be on (min, +) semiring
   int n = A->nrow;
-  int symm = A->symm;
-  World wrld = *(A->wrld);
   Matrix<REAL> * B = new Matrix<REAL>(*A);
   Timer t_matmat("matmat");
-  for (int i = 0; i < log2(B->nrow); ++i) {
+  for (int i = 0; i < log2(n); ++i) {
     t_matmat.start();
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
     t_matmat.stop();
