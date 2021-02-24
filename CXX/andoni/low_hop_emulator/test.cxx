@@ -98,7 +98,7 @@ void perturb(Matrix<REAL> * A) {
   int64_t A_npairs;
   Pair<REAL> * A_loc_pairs;
   A->get_local_pairs(&A_npairs, &A_loc_pairs, true);
-  for (int i = 0; i < A_npairs; ++i) {
+  for (int64_t i = 0; i < A_npairs; ++i) {
     if (A_loc_pairs[i].d != 0) { // TODO: should be unnecessary if get_local_pairs only returns nonzeros
       A_loc_pairs[i].d += rand() / (REAL) RAND_MAX;
     }
@@ -114,7 +114,7 @@ Matrix<bpair> * real_to_bpair(Matrix<REAL> * A) {
   Pair<REAL> * A_loc_pairs;
   A->get_local_pairs(&npairs, &A_loc_pairs, true);
   Pair<bpair> B_loc_pairs[npairs];
-  for (int i = 0; i < npairs; ++i) {
+  for (int64_t i = 0; i < npairs; ++i) {
     B_loc_pairs[i].k = A_loc_pairs[i].k;
     B_loc_pairs[i].d.vertex = A_loc_pairs[i].k % n;
     B_loc_pairs[i].d.dist = A_loc_pairs[i].d;
@@ -250,8 +250,8 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   ball_t * ball = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
   ball->n = n;
   ball->b = b;
-  for (int64_t i = 0; i < n; ++i) {
-    for (int64_t j = 0; j < b; ++j) {
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < b; ++j) {
       ball->closest_neighbors[i*b + j].k = -1;
       ball->closest_neighbors[i*b + j].d = MAX_REAL;
     }

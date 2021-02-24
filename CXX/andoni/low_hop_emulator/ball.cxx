@@ -1,10 +1,10 @@
 #include "ball.h"
 
 /***** utility *****/
-void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs) {
+void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs) {
   Pair<REAL> wr_pairs[npairs];
-  int nwrite = 0;
-  for (int i = 0; i < npairs; ++i) {
+  int64_t nwrite = 0;
+  for (int64_t i = 0; i < npairs; ++i) {
     if (pairs[i].k != -1) {
       wr_pairs[nwrite] = pairs[i];
       ++nwrite;
@@ -68,8 +68,8 @@ ball_t * filter(Matrix<REAL> * A, int b) {
   ball_t * ball = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
   ball->n = n;
   ball->b = b;
-  for (int64_t i = 0; i < n; ++i) {
-    for (int64_t j = 0; j < b; ++j) {
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < b; ++j) {
       ball->closest_neighbors[i*b + j].k = -1;
       ball->closest_neighbors[i*b + j].d = MAX_REAL;
     }
@@ -119,8 +119,8 @@ ball_t * filter(Matrix<bpair> * A, int b) {
   ball_t * ball = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
   ball->n = n;
   ball->b = b;
-  for (int64_t i = 0; i < n; ++i) {
-    for (int64_t j = 0; j < b; ++j) {
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < b; ++j) {
       ball->closest_neighbors[i*b + j].k = -1;
       ball->closest_neighbors[i*b + j].d = MAX_REAL;
     }
@@ -216,7 +216,7 @@ void ball_red(ball_t const * x,
   }
 }
 
-Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min, +) semiring
+Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b) { // A should be on (min, +) semiring
   int n = A->nrow;
   int symm = A->symm;
   World wrld = *(A->wrld);
