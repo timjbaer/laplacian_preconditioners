@@ -1,18 +1,6 @@
 #include "ball.h"
 
 /***** utility *****/
-void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs) {
-  Pair<REAL> wr_pairs[npairs];
-  int64_t nwrite = 0;
-  for (int64_t i = 0; i < npairs; ++i) {
-    if (pairs[i].k != -1) {
-      wr_pairs[nwrite] = pairs[i];
-      ++nwrite;
-    }
-  }
-  A->write(nwrite, wr_pairs);
-}
-
 void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) {
   int n = A->nrow;
   Pair<REAL> wr_pairs[npairs];
@@ -34,7 +22,6 @@ void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) 
   A->write(nwrite, wr_pairs);
 }
 
-/***** filter b closest neighbors *****/
 void filter(Matrix<REAL> * A, int b) {
   Timer t_filter("filter");
   t_filter.start();
@@ -85,7 +72,7 @@ void filter(Matrix<REAL> * A, int b) {
   t_filter.stop();
 }
 
-/***** matmat approach *****/
+/***** matmat *****/
 Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min, +) semiring
   int n = A->nrow;
   int symm = A->symm;
@@ -101,7 +88,7 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b) { // A should be on (min
   return B;
 }
 
-/***** matvec approach *****/
+/***** common *****/
 bpair bpair_min(bpair a, bpair b){
   return a.dist < b.dist ? a : b;
 }

@@ -22,7 +22,7 @@ char* getCmdOption(char ** begin,
 
 Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   uint64_t myseed;
-  int64_t max_ewht;
+  int64_t max_ewht=MAX_REAL;
   char *gfile = NULL;
   int64_t n;
   int scale;
@@ -107,110 +107,6 @@ void perturb(Matrix<REAL> * A) { // TODO: is this still necessary?
   delete [] A_loc_pairs;
 }
 
-// Matrix<bpair> * real_to_bpair(Matrix<REAL> * A, int d) {
-//   int n = A->nrow;
-//   World * w = A->wrld;
-//   int np = A->wrld->np;
-//   const static Monoid<bpair> MIN_BPAIR = get_bpair_monoid();
-//   Matrix<bpair> * B;
-//   if (d == 1) { // 1D distribution (block along rows)
-//     int plens[1] = { np };
-//     Partition part(1, plens);
-//     Idx_Partition blk;
-//     B = new Matrix<bpair>(n, n, "ij", part["i"], blk, A->symm, *w, MIN_BPAIR);
-//   } else { // default (2D) distribution
-//     B = new Matrix<bpair>(n, n, *w, MIN_BPAIR);
-//   }
-//   int64_t npairs;
-//   Pair<REAL> * A_loc_pairs;
-//   A->get_local_pairs(&npairs, &A_loc_pairs, true);
-//   Pair<bpair> B_loc_pairs[npairs];
-//   for (int i = 0; i < npairs; ++i) {
-//     B_loc_pairs[i].k = A_loc_pairs[i].k;
-//     B_loc_pairs[i].d.vertex = A_loc_pairs[i].k / n;
-//     B_loc_pairs[i].d.dist = A_loc_pairs[i].d;
-//   }
-//   B->write(npairs, B_loc_pairs);
-//   delete [] A_loc_pairs;
-//   return B;
-// }
-
-// void test_ball_red() { // run on one process
-//   printf("test ball reduction\n");
-//   int n = 1;
-//   int b = 5;
-//   ball_t * x = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
-//   ball_t * y = (ball_t *) malloc(sizeof(ball_t) + n * b * sizeof(Pair<REAL>));
-//   x->n = n;
-//   y->n = n;
-//   x->b = b;
-//   y->b = b;
-//   for (int64_t i = 0; i < b; ++i) {
-//     x->closest_neighbors[i].k = 2 * i;
-//     y->closest_neighbors[i].k = 2 * i + 1;
-//     x->closest_neighbors[i].d = 2 * i;
-//     y->closest_neighbors[i].d = 2 * i + 1;
-//   }
-//   ball_red(x, y, 1);
-//   int pass = 1;
-//   for (int i = 0; i < b; ++i) {
-//     printf("%f ", y->closest_neighbors[i].d);
-//     if (y->closest_neighbors[i].d != i)
-//       pass = 0;
-//   }
-//   printf("\n");
-//   if (pass) {
-//     printf("passed test ball reduction\n");
-//   } else {
-//     printf("failed test ball reduction\n");
-//   }
-//   free(x);
-//   free(y);
-// }
-
-// void test_bvector_red() { // run on one process
-//   printf("test bvector reduction\n");
-//   bvector<10> * x = (bvector<10> *) malloc(sizeof(bvector<10>));
-//   bvector<10> * y = (bvector<10> *) malloc(sizeof(bvector<10>));
-//   for (int64_t i = 0; i < 5; ++i) {
-//     x->closest_neighbors[i].vertex = 2 * i;
-//     y->closest_neighbors[i].vertex = 2 * i + 1;
-//     x->closest_neighbors[i].dist = 2 * i;
-//     y->closest_neighbors[i].dist = 2 * i + 1;
-//   }
-//   for (int i = 0; i < 5; ++i) { // duplicate vertices
-//     y->closest_neighbors[5+i].vertex = 2 * i;
-//     x->closest_neighbors[5+i].vertex = 2 * i + 1;
-//     y->closest_neighbors[5+i].dist = 2 * i + 1;
-//     x->closest_neighbors[5+i].dist = 2 * i + 1 + 1;
-//   }
-//   bvector_red(x, y, 1);
-//   int pass = 1;
-//   for (int i = 0; i < 10; ++i) {
-//     printf("%f ", y->closest_neighbors[i].dist);
-//     if (y->closest_neighbors[i].dist != i)
-//       pass = 0;
-//   }
-//   printf("\n");
-//   if (pass) {
-//     printf("passed test ball reduction\n");
-//   } else {
-//     printf("failed test ball reduction\n");
-//   }
-//   free(x);
-//   free(y);
-// }
-
-// ball_t * correct_ball(Matrix<REAL> * A, int b) {
-//   Matrix<REAL> * B = new Matrix<REAL>(*A);
-//   for (int i = 0; i < log2(B->nrow); ++i) {
-//     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
-//   }
-//   ball_t * correct = filter(B, b);
-//   delete B;
-//   return correct;
-// }
-
 int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B) // TODO: may need to consider sparsity like mst are_vectors_different()
 {
   Scalar<int64_t> s;
@@ -219,9 +115,6 @@ int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B) // TODO: may 
 }
 
 Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of filter()
-  int n = A->nrow;
-  int symm = A->symm;
-  World wrld = *(A->wrld);
   Matrix<REAL> * B = new Matrix<REAL>(*A);
   for (int i = 0; i < log2(B->nrow); ++i) {
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
@@ -305,8 +198,9 @@ int main(int argc, char** argv)
   int const in_num = argc;
   char** input_str = argv;
   int critter_mode=0;
-  int b;
+  int b=BALL_SIZE;
   int bvec=0;
+  int multi=0;
   int d=2;
 
   int rank;
@@ -330,7 +224,6 @@ int main(int argc, char** argv)
     } else { // default (2D) distribution
       A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     }
-    // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring
     (*A)["ii"] = MAX_REAL;
     A->sparsify();
@@ -343,11 +236,15 @@ int main(int argc, char** argv)
       bvec = atoi(getCmdOption(input_str, input_str+in_num, "-bvec"));
       if (bvec < 0) bvec = 0;
     } else bvec = 0;
+    if (getCmdOption(input_str, input_str+in_num, "-multi")){
+      multi = atoi(getCmdOption(input_str, input_str+in_num, "-multi"));
+      if (multi < 0) multi = 0;
+    } else multi = 0;
+    assert(!multi || !bvec);
     if (getCmdOption(input_str, input_str+in_num, "-critter_mode")){
       critter_mode = atoi(getCmdOption(input_str, input_str+in_num, "-critter_mode"));
       if (critter_mode < 0) critter_mode = 0;
     } else critter_mode = 0;
-    // init_mpi(A->nrow, b);
 #ifdef CRITTER
       critter::start(critter_mode);
 #endif
@@ -361,7 +258,7 @@ int main(int argc, char** argv)
 #endif
         if (!b)
           b = ceil(log2(A->nrow));
-        if (!bvec) {
+        if (!bvec && !multi) {
           TAU_FSTART(ball via matmat);
           double stime = MPI_Wtime();
           Matrix<REAL> * ball = ball_matmat(A, b);
@@ -381,7 +278,11 @@ int main(int argc, char** argv)
         } else {
           TAU_FSTART(ball via matvec);
           double stime = MPI_Wtime();
-          Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A);
+          Vector<bvector<BALL_SIZE>> * ball;
+          if (bvec)
+            ball = ball_bvector<BALL_SIZE>(A);
+          else if (multi)
+            ball = ball_multilinear<BALL_SIZE>(A);
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matvec);
 #ifdef DEBUG
@@ -400,9 +301,41 @@ int main(int argc, char** argv)
 #ifdef CRITTER
       critter::stop(critter_mode);
 #endif
-    // destroy_mpi();
     delete A;
   }
   MPI_Finalize();
   return 0;
 }
+
+// void test_bvector_red() { // run on one process
+//   printf("test bvector reduction\n");
+//   bvector<10> * x = (bvector<10> *) malloc(sizeof(bvector<10>));
+//   bvector<10> * y = (bvector<10> *) malloc(sizeof(bvector<10>));
+//   for (int64_t i = 0; i < 5; ++i) {
+//     x->closest_neighbors[i].vertex = 2 * i;
+//     y->closest_neighbors[i].vertex = 2 * i + 1;
+//     x->closest_neighbors[i].dist = 2 * i;
+//     y->closest_neighbors[i].dist = 2 * i + 1;
+//   }
+//   for (int i = 0; i < 5; ++i) { // duplicate vertices
+//     y->closest_neighbors[5+i].vertex = 2 * i;
+//     x->closest_neighbors[5+i].vertex = 2 * i + 1;
+//     y->closest_neighbors[5+i].dist = 2 * i + 1;
+//     x->closest_neighbors[5+i].dist = 2 * i + 1 + 1;
+//   }
+//   bvector_red(x, y, 1);
+//   int pass = 1;
+//   for (int i = 0; i < 10; ++i) {
+//     printf("%f ", y->closest_neighbors[i].dist);
+//     if (y->closest_neighbors[i].dist != i)
+//       pass = 0;
+//   }
+//   printf("\n");
+//   if (pass) {
+//     printf("passed test ball reduction\n");
+//   } else {
+//     printf("failed test ball reduction\n");
+//   }
+//   free(x);
+//   free(y);
+// }
