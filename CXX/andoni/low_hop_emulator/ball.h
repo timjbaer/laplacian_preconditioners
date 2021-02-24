@@ -10,12 +10,12 @@ using namespace CTF;
 typedef float REAL;
 #define MAX_REAL (INT_MAX/2)
 
-#define BALL_SIZE 16
+#define BALL_SIZE 4
 
 #define EPSILON 0.01
 
 /***** utility *****/
-void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
+void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
 
 /***** filter b closest neighbors *****/
 extern MPI_Datatype MPI_PAIR;
@@ -56,7 +56,7 @@ static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
       return a + b;
     });
 
-Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b);
+Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int64_t b);
 
 /***** matvec approach *****/
 template<int b>
