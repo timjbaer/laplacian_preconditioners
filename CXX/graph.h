@@ -38,6 +38,7 @@ class Graph {
     vector<Int64Pair>* edges;
 
     Graph();
+    ~Graph();
 
     Matrix<REAL>* adjacencyMatrix(World* world, bool sparse = false);
 };

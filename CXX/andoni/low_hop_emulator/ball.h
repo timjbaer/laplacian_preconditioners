@@ -8,28 +8,9 @@
 using namespace CTF;
 #define SEED 23
 typedef float REAL;
-#define MAX_REAL (INT_MAX/2)
-
-#define BALL_SIZE 4
-
-#define EPSILON 0.01
-
-/***** utility *****/
-void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int npairs);
-
-/***** filter b closest neighbors *****/
-extern MPI_Datatype MPI_PAIR;
-extern MPI_Datatype MPI_BALL;
-extern MPI_Op oball;
-
-struct ball_t {
-  int n;
-  int b;
-  Pair<REAL> closest_neighbors[]; // contiguous, flattened 2D array
-};
-
-void init_mpi(int n, int b);
-void destroy_mpi();
+#define MAX_REAL  (INT_MAX/2)
+#define EPSILON   0.01
+#define BALL_SIZE 8
 
 class bpair {
   public:
@@ -42,8 +23,12 @@ class bpair {
 };
 Monoid<bpair> get_bpair_monoid();
 
-ball_t * filter(Matrix<REAL> * A, int b);
-ball_t * filter(Matrix<bpair> * A, int b);
+/***** utility *****/
+void write_valid_idxs(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
+void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
+
+/***** filter b closest neighbors *****/
+void filter(Matrix<REAL> * A, int b);
 
 /***** matmat approach *****/
 static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
@@ -92,10 +77,14 @@ template<int b>
 bvector<b> bvector_red(bvector<b> const * x, // TODO: multithread
                  bvector<b> * y,
                  int nitems){
+  Timer t_bvector_red("bvector_red");
+  t_bvector_red.start();
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
   for (int item = 0; item < nitems; ++item) {
+    if (x->closest_neighbors[0].dist >= y->closest_neighbors[b-1].dist)
+      continue;
     bvector<b> * y_prev = (bvector<b> *) malloc(sizeof(bvector<b>));
     for (int i = 0; i < b; ++i) {
       y_prev->closest_neighbors[i] = y[item].closest_neighbors[i];
@@ -149,6 +138,7 @@ bvector<b> bvector_red(bvector<b> const * x, // TODO: multithread
     }
     free(y_prev);
   }
+  t_bvector_red.stop();
   return *y;
 }
 
@@ -173,64 +163,152 @@ Monoid< bvector<b> > get_bvector_monoid() {
   return m;
 }
 
+// template<int b>
+// void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
+//   int n = A->nrow; 
+//   int64_t A_npairs;
+//   Pair<bpair> * A_pairs;
+//   A->get_local_pairs(&A_npairs, &A_pairs, true);
+//   std::sort(A_pairs, A_pairs + A_npairs,
+//         std::bind([](Pair<bpair> const & first, Pair<bpair> const & second, int64_t n) -> bool
+//                     { return first.k % n < second.k % n; }, 
+//                     std::placeholders::_1, std::placeholders::_2, n)
+//            );
+// 
+//   int np = A->wrld->np;
+//   int64_t off[(int)ceil(n/(float)np)+1];
+//   int vertex = -1;
+//   int nrows = 0;
+//   for (int i = 0; i < A_npairs; ++i) {
+//     if (A_pairs[i].k % n > vertex) {
+//       off[nrows] = i;
+//       vertex = A_pairs[i].k % n;
+//       ++nrows;
+//     }
+//   }
+//   off[nrows] = A_npairs;
+// #ifdef _OPENMP
+//   #pragma omp parallel for
+// #endif
+//   for (int64_t i = 0; i < nrows; ++i) { // sort to filter b closest edges
+//     int nedges = off[i+1] - off[i];
+//     int64_t first = off[i];
+//     int64_t middle = off[i] + (nedges < b ? nedges : b);
+//     int64_t last = off[i] + nedges;
+//     std::partial_sort(A_pairs + first, A_pairs + middle, A_pairs + last, 
+//                   [](Pair<bpair> const & first, Pair<bpair> const & second) -> bool
+//                     { return first.d.dist < second.d.dist; }
+//                     );
+//   }
+//   Pair<bvector<b>> bvecs[nrows];
+// #ifdef _OPENMP
+//   #pragma omp parallel for
+// #endif
+//   for (int i = 0; i < nrows; ++i) {
+//     bvecs[i].k = A_pairs[off[i]].k % n;
+//     int nedges = off[i+1] - off[i];
+//     for (int j = 0; j < (nedges < b ? nedges : b); ++j) {
+//       bvecs[i].d.closest_neighbors[j] = A_pairs[off[i] + j].d;
+//     }
+//   }
+//   B->write(nrows, bvecs); 
+//   delete [] A_pairs;
+// }
+
 template<int b>
-void init_closest_edges(Matrix<bpair> * A, Vector<bvector<b>> * B) {
-  int n = A->nrow;
-  ball_t * ball = filter(A, b);
-  Pair<bvector<b>> bvecs[n];
+void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
+  Timer t_init_closest_edges("init_closest_edges");
+  t_init_closest_edges.start();
+  int n = A->nrow; 
+  int64_t A_npairs;
+  Pair<REAL> * A_pairs;
+  A->get_local_pairs(&A_npairs, &A_pairs, true);
+  std::sort(A_pairs, A_pairs + A_npairs,
+        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int64_t n) -> bool
+                    { return first.k % n < second.k % n; }, 
+                    std::placeholders::_1, std::placeholders::_2, n)
+           );
+
+  int np = A->wrld->np;
+  int64_t off[(int)ceil(n/(float)np)+1];
+  int vertex = -1;
+  int nrows = 0;
+  for (int i = 0; i < A_npairs; ++i) {
+    if (A_pairs[i].k % n > vertex) {
+      off[nrows] = i;
+      vertex = A_pairs[i].k % n;
+      ++nrows;
+    }
+  }
+  off[nrows] = A_npairs;
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
-  for (int i = 0; i < n; ++i) {
-    bvecs[i].k = i;
-    for (int j = 0; j < b; ++j) {
-      bvecs[i].d.closest_neighbors[j].vertex = -1;
-      bvecs[i].d.closest_neighbors[j].dist = MAX_REAL;
+  for (int64_t i = 0; i < nrows; ++i) { // sort to filter b closest edges
+    int nedges = off[i+1] - off[i];
+    int64_t first = off[i];
+    int64_t middle = off[i] + (nedges < b ? nedges : b);
+    int64_t last = off[i] + nedges;
+    std::partial_sort(A_pairs + first, A_pairs + middle, A_pairs + last, 
+                  [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
+                    { return first.d < second.d; }
+                    );
+  }
+  Pair<bvector<b>> bvecs[nrows];
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int i = 0; i < nrows; ++i) {
+    bvecs[i].k = A_pairs[off[i]].k % n;
+    int nedges = off[i+1] - off[i];
+    for (int j = 0; j < (nedges < b ? nedges : b); ++j) {
+      bvecs[i].d.closest_neighbors[j].vertex = A_pairs[off[i] + j].k / n;
+      bvecs[i].d.closest_neighbors[j].dist = A_pairs[off[i] + j].d;
     }
   }
-  int off[n];
-  memset(off, 0, n*sizeof(int));
-  for (int i = 0; i < n*b; ++i) { // fills bvecs in sorted order
-    Pair<REAL> pair = ball->closest_neighbors[i];
-    int vertex = pair.k % n;
-    if (pair.k != -1) {
-      bvecs[vertex].d.closest_neighbors[off[vertex]].vertex = pair.k / n;
-      bvecs[vertex].d.closest_neighbors[off[vertex]].dist = pair.d;
-      ++off[vertex];
-      assert(off[vertex] <= b);
-    }
-  }
-  B->write(n, bvecs); 
-
-  free(ball);
+  B->write(nrows, bvecs); 
+  delete [] A_pairs;
+  t_init_closest_edges.stop();
 }
 
 template<int b>
-Vector<bvector<b>> * ball_bvector(Matrix<bpair> * A) {
+Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A) {
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_closest_edges(A, B);
 
-  Bivar_Function<bpair,bvector<b>,bvector<b>> relax([](bpair e, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
-    bvector<b> ret;
-    for (int i = 0; i < b; ++i) {
-      if (e.vertex == -1) // FIXME: since intersect_only = true, should not be necessary... is ctf not doing float computation correctly to see if (-1, \inf)'s are addid?
-        continue;
-      if (bvec.closest_neighbors[i].vertex == -1) {
-        ret.closest_neighbors[i] = bvec.closest_neighbors[i];
-      } else {
-        ret.closest_neighbors[i].vertex = bvec.closest_neighbors[i].vertex;
-        ret.closest_neighbors[i].dist = e.dist + bvec.closest_neighbors[i].dist;
-      }
-    }
-    return ret;
-  });
-  relax.intersect_only = true;
+  // Bivar_Function<REAL,bvector<b>,bvector<b>> relax([](REAL a, bvector<b> bvec){ // TODO: use Transform (as long as it accumulates)
+  //   assert(fabs(MAX_REAL - a) >= EPSILON); // since intersect_only = true
+  //   for (int i = 0; i < b; ++i) {
+  //     if (bvec.closest_neighbors[i].vertex > -1)
+  //       bvec.closest_neighbors[i].dist = a + bvec.closest_neighbors[i].dist;
+  //   }
+  //   return bvec;
+  // });
+  // relax.intersect_only = true;
 
+  // for (int i = 0; i < b; ++i) {
+  //   (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+  // }
+
+  std::function<bvector<b>(bvector<b>,REAL,bvector<b>)> f = [](bvector<b> other, REAL a, bvector<b> me){ // me and other are switched since CTF stores col-first
+    assert(fabs(MAX_REAL - a) >= EPSILON);
+    if (other.closest_neighbors[0].dist + a >= me.closest_neighbors[b-1].dist)
+      return me;
+    for (int i = 0; i < b; ++i) {
+      if (other.closest_neighbors[i].vertex > -1)
+        other.closest_neighbors[i].dist = a + other.closest_neighbors[i].dist;
+    }
+    // comment out below 2 lines and uncomment 3rd line to recover original algorithm (with additional overhead)
+    bvector_red<b>(&other, &me, 1);
+    return me;
+    // return other;
+  };
+  Tensor<bvector<b>> * vec_list[2] = {B, B};
   for (int i = 0; i < b; ++i) {
-    (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+    Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
   }
 
   return B;
