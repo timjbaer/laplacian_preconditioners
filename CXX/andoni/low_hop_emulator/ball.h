@@ -335,15 +335,20 @@ Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { 
   std::function<bvector<b>(bvector<b>,REAL,bvector<b>)> f = [](bvector<b> other, REAL a, bvector<b> me){ // me and other are switched since CTF stores col-first
     assert(fabs(MAX_REAL - a) >= EPSILON);
     if (other.closest_neighbors[0].dist + a >= me.closest_neighbors[b-1].dist)
-      return me;
+      return bvector<b>(); // me will be accumulated into
     for (int i = 0; i < b; ++i) {
       if (other.closest_neighbors[i].vertex > -1)
         other.closest_neighbors[i].dist = a + other.closest_neighbors[i].dist;
     }
-    // comment out below 2 lines and uncomment 3rd line to recover bvector algorithm (with additional overhead)
-    bvector_red<b>(&other, &me, 1);
-    return me;
+    // uncomment below line and comment out following 7 lines to recover bvector algorithm (with additional overhead)
     // return other;
+    if (other.closest_neighbors[b-1].dist >= me.closest_neighbors[b-1].dist) {
+      bvector_red<b>(&other, &me, 1); // write to better guess
+      return me;
+    } else {
+      bvector_red<b>(&me, &other, 1);
+      return other; // write to better guess
+    }
   };
   Tensor<bvector<b>> * vec_list[2] = {B, B};
 
