@@ -133,25 +133,10 @@ int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
  
 int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   int n = A->nrow;
-  int64_t B_npairs;
-  Pair<bvector<BALL_SIZE>> * B_pairs;
-  B->get_local_pairs(&B_npairs, &B_pairs, true);
-  int64_t C_npairs = 0;
-  Pair<REAL> C_pairs[B_npairs*b];
-  for (int64_t i = 0; i < B_npairs; ++i) {
-    for (int j = 0; j < b; ++j) {
-      if (B_pairs[i].d.closest_neighbors[j].vertex > -1) {
-        C_pairs[C_npairs].k = B_pairs[i].k + B_pairs[i].d.closest_neighbors[j].vertex * n;
-        C_pairs[C_npairs].d = B_pairs[i].d.closest_neighbors[j].dist;
-        ++C_npairs;
-      }
-    }
-  }
   Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm, *(A->wrld), *(A->sr));
-  C->write(C_npairs, C_pairs);
+  bvec_to_mat(C, B);
   int64_t s = check_ball(A, C, b);
   delete C;
-  delete [] B_pairs;
   return s;
 }
 
@@ -165,6 +150,7 @@ int main(int argc, char** argv)
   int multi=0;
   // int d=1;
   int conv=0;
+  int square=0;
 
   int rank;
   int np;
@@ -208,6 +194,10 @@ int main(int argc, char** argv)
       conv = atoi(getCmdOption(input_str, input_str+in_num, "-conv"));
       if (conv < 0) conv = 0;
     } else conv = 0;
+    if (getCmdOption(input_str, input_str+in_num, "-square")){
+      square = atoi(getCmdOption(input_str, input_str+in_num, "-square"));
+      if (square < 0) square = 0;
+    } else square = 0;
     if (getCmdOption(input_str, input_str+in_num, "-critter_mode")){
       critter_mode = atoi(getCmdOption(input_str, input_str+in_num, "-critter_mode"));
       if (critter_mode < 0) critter_mode = 0;
@@ -247,9 +237,9 @@ int main(int argc, char** argv)
           double stime = MPI_Wtime();
           Vector<bvector<BALL_SIZE>> * ball = nullptr;
           if (bvec)
-            ball = ball_bvector<BALL_SIZE>(A,conv);
+            ball = ball_bvector<BALL_SIZE>(A,conv,square);
           else if (multi)
-            ball = ball_multilinear<BALL_SIZE>(A,conv);
+            ball = ball_multilinear<BALL_SIZE>(A,conv,square);
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matvec);
 #ifdef DEBUG

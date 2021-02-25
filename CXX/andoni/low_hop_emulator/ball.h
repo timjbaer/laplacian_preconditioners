@@ -248,9 +248,31 @@ int64_t are_vectors_different(Vector<bvector<b>> * A, Vector<bvector<b>> * B)
   return s.get_val();
 }
 
+template<int b>
+void bvec_to_mat(Matrix<REAL> * A, Vector<bvector<b>> * B) {
+  int n = B->len;
+  int64_t B_npairs;
+  Pair<bvector<BALL_SIZE>> * B_pairs;
+  B->get_local_pairs(&B_npairs, &B_pairs, true);
+  int64_t A_npairs = 0;
+  Pair<REAL> A_pairs[B_npairs*b];
+  for (int64_t i = 0; i < B_npairs; ++i) {
+    for (int j = 0; j < b; ++j) {
+      if (B_pairs[i].d.closest_neighbors[j].vertex > -1) {
+        A_pairs[A_npairs].k = B_pairs[i].k + B_pairs[i].d.closest_neighbors[j].vertex * n;
+        A_pairs[A_npairs].d = B_pairs[i].d.closest_neighbors[j].dist;
+        ++A_npairs;
+      }
+    }
+  }
+  (*A)["ij"] = MAX_REAL;
+  A->write(A_npairs, A_pairs);
+  A->sparsify();
+}
+
 /***** algorithms *****/
 template<int b>
-Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv) { // see section 3.1 & 3.2
+Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // see section 3.1 & 3.2
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
@@ -268,6 +290,7 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv) { // see section 3
   relax.intersect_only = true;
 
   Timer t_relax("relax");
+  Timer t_square("square");
   if (conv) { // see section 3.7
     Timer t_conv("conv");
     Vector<bvector<b>> * B_prev = new Vector<bvector<b>>(*B);
@@ -277,6 +300,11 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv) { // see section 3
       t_relax.start();
       (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
       t_relax.stop();
+      if (square) {
+        t_square.start();
+        bvec_to_mat(A, B); // writes B to A
+        t_square.stop();
+      }
       t_conv.start();
       diff = are_vectors_different<BALL_SIZE>(B, B_prev);
       (*B_prev)["i"] = (*B)["i"];
@@ -297,7 +325,7 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv) { // see section 3
 }
 
 template<int b>
-Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv) { // see section 3.4 & 3.5
+Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { // see section 3.4 & 3.5
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
@@ -319,6 +347,7 @@ Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv) { // see secti
   };
   Tensor<bvector<b>> * vec_list[2] = {B, B};
 
+  Timer t_square("square");
   if (conv) { // see section 3.7
     Timer t_conv("conv");
     Vector<bvector<b>> * B_prev = new Vector<bvector<b>>(*B);
@@ -326,6 +355,11 @@ Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv) { // see secti
     int64_t diff = 1;
     while (diff) {
       Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
+      if (square) {
+        t_square.start();
+        bvec_to_mat(A, B); // writes B to A
+        t_square.stop();
+      }
       t_conv.start();
       diff = are_vectors_different<BALL_SIZE>(B, B_prev);
       (*B_prev)["i"] = (*B)["i"];
