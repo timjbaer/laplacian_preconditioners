@@ -38,6 +38,11 @@ class bpair {
     bpair() { vertex = -1; dist = MAX_REAL; } // addid
     bpair(int vertex_, REAL dist_) { vertex = vertex_; dist = dist_; }
     bpair(bpair const & other) { vertex = other.vertex; dist = other.dist; }
+    bpair& operator=(bpair other) { vertex = other.vertex; dist = other.dist; return *this; }
+
+    friend bool operator!=(const bpair & b1, const bpair & b2) {
+      return b1.vertex != b2.vertex || fabs(b1.dist - b2.dist) >= EPSILON;
+    }
 };
 Monoid<bpair> get_bpair_monoid();
 
@@ -51,6 +56,25 @@ class bvector {
         closest_neighbors[i].vertex = -1;
         closest_neighbors[i].dist = MAX_REAL;
       }
+    }
+    bvector(bvector<b> const & other) {
+      for (int i = 0; i < b; ++i) {
+        closest_neighbors[i] = other.closest_neighbors[i];
+      }
+    }
+    bvector<b>& operator=(bvector<b> other) {
+      for (int i = 0; i < b; ++i) {
+        closest_neighbors[i] = other.closest_neighbors[i];
+      }
+      return *this;
+    }
+
+    friend bool operator!=(const bvector<b> & b1, const bvector<b> & b2) {
+      for (int i = 0; i < b; ++i) {
+        if (b1.closest_neighbors[i] != b2.closest_neighbors[i])
+          return true;
+      }
+      return false;
     }
 };
 
@@ -216,9 +240,17 @@ void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) { // TODO: ref
   t_init_closest_edges.stop();
 }
 
+template<int b>
+int64_t are_vectors_different(Vector<bvector<b>> * A, Vector<bvector<b>> * B)
+{
+  Scalar<int64_t> s;
+  s[""] += Function<bvector<b>,bvector<b>,int64_t>([](bvector<b> a, bvector<b> c){ return (int64_t) fabs(a!=c); })((*A)["i"],(*B)["i"]);
+  return s.get_val();
+}
+
 /***** algorithms *****/
 template<int b>
-Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A) { // see section 3.1 & 3.2
+Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv) { // see section 3.1 & 3.2
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
@@ -236,17 +268,36 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A) { // see section 3.1 & 3.2
   relax.intersect_only = true;
 
   Timer t_relax("relax");
-  t_relax.start();
-  for (int i = 0; i < b; ++i) {
-    (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+  if (conv) { // see section 3.7
+    Timer t_conv("conv");
+    Vector<bvector<b>> * B_prev = new Vector<bvector<b>>(*B);
+    int niter = 0;
+    int64_t diff = 1;
+    while (diff) {
+      t_relax.start();
+      (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+      t_relax.stop();
+      t_conv.start();
+      diff = are_vectors_different<BALL_SIZE>(B, B_prev);
+      (*B_prev)["i"] = (*B)["i"];
+      t_conv.stop();
+      ++niter;
+    }
+    if (A->wrld->rank == 0)
+      printf("converged in %d iterations\n", niter);
+  } else {
+    t_relax.start();
+    for (int i = 0; i < b; ++i) {
+      (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+    }
+    t_relax.stop();
   }
-  t_relax.stop();
 
   return B;
 }
 
 template<int b>
-Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A) { // see section 3.4 & 3.5
+Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv) { // see section 3.4 & 3.5
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
@@ -267,8 +318,26 @@ Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A) { // see section 3.4 & 3
     // return other;
   };
   Tensor<bvector<b>> * vec_list[2] = {B, B};
-  for (int i = 0; i < b; ++i) {
-    Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
+
+  if (conv) { // see section 3.7
+    Timer t_conv("conv");
+    Vector<bvector<b>> * B_prev = new Vector<bvector<b>>(*B);
+    int niter = 0;
+    int64_t diff = 1;
+    while (diff) {
+      Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
+      t_conv.start();
+      diff = are_vectors_different<BALL_SIZE>(B, B_prev);
+      (*B_prev)["i"] = (*B)["i"];
+      t_conv.stop();
+      ++niter;
+    }
+    if (A->wrld->rank == 0)
+      printf("converged in %d iterations\n", niter);
+  } else {
+    for (int i = 0; i < b; ++i) {
+      Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
+    }
   }
 
   return B;

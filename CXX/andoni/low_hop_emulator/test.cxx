@@ -164,6 +164,7 @@ int main(int argc, char** argv)
   int bvec=0;
   int multi=0;
   // int d=1;
+  int conv=0;
 
   int rank;
   int np;
@@ -203,6 +204,10 @@ int main(int argc, char** argv)
       if (multi < 0) multi = 0;
     } else multi = 0;
     assert(!multi || !bvec);
+    if (getCmdOption(input_str, input_str+in_num, "-conv")){
+      conv = atoi(getCmdOption(input_str, input_str+in_num, "-conv"));
+      if (conv < 0) conv = 0;
+    } else conv = 0;
     if (getCmdOption(input_str, input_str+in_num, "-critter_mode")){
       critter_mode = atoi(getCmdOption(input_str, input_str+in_num, "-critter_mode"));
       if (critter_mode < 0) critter_mode = 0;
@@ -242,9 +247,9 @@ int main(int argc, char** argv)
           double stime = MPI_Wtime();
           Vector<bvector<BALL_SIZE>> * ball = nullptr;
           if (bvec)
-            ball = ball_bvector<BALL_SIZE>(A);
+            ball = ball_bvector<BALL_SIZE>(A,conv);
           else if (multi)
-            ball = ball_multilinear<BALL_SIZE>(A);
+            ball = ball_multilinear<BALL_SIZE>(A,conv);
           double etime = MPI_Wtime();
           TAU_FSTOP(ball via matvec);
 #ifdef DEBUG
