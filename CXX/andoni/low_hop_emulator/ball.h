@@ -186,6 +186,7 @@ Monoid< bvector<b> > get_bvector_monoid() {
 
 template<int b>
 void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) { // TODO: refactor from filter
+  assert(A->topo->order == 1); // A distributed on 1D processor grid
   Timer t_init_closest_edges("init_closest_edges");
   t_init_closest_edges.start();
   int n = A->nrow; 
@@ -273,6 +274,7 @@ void bvec_to_mat(Matrix<REAL> * A, Vector<bvector<b>> * B) {
 /***** algorithms *****/
 template<int b>
 Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // see section 3.1 & 3.2
+  assert(A->topo->order == 1); // A distributed on 1D processor grid
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
@@ -326,6 +328,7 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
 
 template<int b>
 Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { // see section 3.4 & 3.5
+  assert(A->topo->order == 2); // A distributed on 2D processor grid
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
