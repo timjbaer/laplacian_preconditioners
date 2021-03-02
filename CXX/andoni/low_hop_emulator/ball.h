@@ -104,7 +104,15 @@ bvector<b> bvector_red(bvector<b> const * x, // TODO: optimize merging of sorted
   #pragma omp parallel for
 #endif
   for (int item = 0; item < nitems; ++item) {
-    if (x->closest_neighbors[0].dist >= y->closest_neighbors[b-1].dist)
+    // FIXME: when can x or y be addid and this is still called?
+    // assert(x[item].closest_neighbors[0].vertex > -1 && y[item].closest_neighbors[0].vertex > -1); // x nor y are addid
+    if (x[item].closest_neighbors[0].vertex == -1) {
+      continue;
+    } else if (y[item].closest_neighbors[0].vertex == -1) {
+      y[item] = x[item];
+      continue;
+    }
+    if (x[item].closest_neighbors[0].dist >= y[item].closest_neighbors[b-1].dist)
       continue;
     bvector<b> * y_prev = (bvector<b> *) malloc(sizeof(bvector<b>));
     for (int i = 0; i < b; ++i) {
@@ -160,7 +168,7 @@ bvector<b> bvector_red(bvector<b> const * x, // TODO: optimize merging of sorted
     free(y_prev);
   }
   t_bvector_red.stop();
-  return *y;
+  return *y; // result only used when nitems == 1
 }
 
 template<int b>
@@ -285,7 +293,7 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
     assert(fabs(MAX_REAL - a) >= EPSILON); // since intersect_only = true
     for (int i = 0; i < b; ++i) {
       if (bvec.closest_neighbors[i].vertex > -1)
-        bvec.closest_neighbors[i].dist = a + bvec.closest_neighbors[i].dist;
+        bvec.closest_neighbors[i].dist += a;
     }
     return bvec;
   });
@@ -328,30 +336,26 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
 
 template<int b>
 Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { // see section 3.4 & 3.5
-  assert(A->topo->order == 2); // A distributed on 2D processor grid
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
   init_closest_edges(A, B);
 
+  // assert(A->topo->order == 2); // A distributed on 2D processor grid
+
   std::function<bvector<b>(bvector<b>,REAL,bvector<b>)> f = [](bvector<b> other, REAL a, bvector<b> me){ // me and other are switched since CTF stores col-first
     assert(fabs(MAX_REAL - a) >= EPSILON);
-    if (other.closest_neighbors[0].dist + a >= me.closest_neighbors[b-1].dist)
+    if (other.closest_neighbors[0].vertex == -1 || other.closest_neighbors[0].dist + a >= me.closest_neighbors[b-1].dist)
       return bvector<b>(); // me will be accumulated into
     for (int i = 0; i < b; ++i) {
       if (other.closest_neighbors[i].vertex > -1)
-        other.closest_neighbors[i].dist = a + other.closest_neighbors[i].dist;
+        other.closest_neighbors[i].dist += a;
     }
-    // uncomment below line and comment out following 7 lines to recover bvector algorithm (with additional overhead)
+    // comment out below 2 lines and uncomment following line to recover bvector algorithm (with additional overhead)
+    bvector_red<b>(&other, &me, 1);
+    return me;
     // return other;
-    if (other.closest_neighbors[b-1].dist >= me.closest_neighbors[b-1].dist) {
-      bvector_red<b>(&other, &me, 1); // write to better guess
-      return me;
-    } else {
-      bvector_red<b>(&me, &other, 1);
-      return other; // write to better guess
-    }
   };
   Tensor<bvector<b>> * vec_list[2] = {B, B};
 
