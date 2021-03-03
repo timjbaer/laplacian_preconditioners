@@ -14,6 +14,6 @@ uint64_t read_graph_mpiio(int myid, int ntask, const char *fpath, uint64_t **edg
 
 uint64_t read_graph(int myid, int ntask, const char *fpath, uint64_t **edge);
 
-uint64_t read_metis(int myid, int ntask, const char *fpath, std::vector<std::pair<uint64_t, uint64_t> > &edges, int * n, bool * e_weights, std::vector<REAL> &eweights);
+uint64_t read_metis(int myid, int ntask, const char *fpath, std::vector<std::pair<uint64_t, uint64_t> > &edges, int64_t * n, bool * e_weights, std::vector<REAL> &eweights);
 
 #endif

@@ -53,11 +53,11 @@ uint64_t gen_graph(int scale, int edgef, uint64_t seed, uint64_t **edges) {
   return nedges;
 }
 
-Matrix <REAL> * preprocess_graph(int         n,
+Matrix <REAL> * preprocess_graph(int64_t         n,
                                World &        dw,
                                Matrix<REAL> * A_pre,
                                bool           remove_singlets,
-                               int *          n_nnz,
+                               int64_t *          n_nnz,
                                int64_t        max_ewht){
   Semiring<REAL> s(MAX_REAL,
                   [](REAL a, REAL b){ return std::min(a,b); },
@@ -113,10 +113,10 @@ Matrix <REAL> * preprocess_graph(int         n,
 }
 
 Matrix<REAL> * read_matrix(World  &     dw,
-                           int          n,
+                           int64_t          n,
                            const char * fpath,
                            bool         remove_singlets,
-                           int *        n_nnz,
+                           int64_t *        n_nnz,
                            int64_t      max_ewht){
   uint64_t *my_edges = NULL;
   uint64_t my_nedges = 0;
@@ -164,7 +164,7 @@ Matrix <REAL> * gen_rmat_matrix(World  & dw,
                                 int      ef,
                                 uint64_t gseed,
                                 bool     remove_singlets,
-                                int *    n_nnz,
+                                int64_t *    n_nnz,
                                 int64_t  max_ewht){
   uint64_t *edge=NULL;
   uint64_t nedges = 0;
@@ -194,8 +194,10 @@ Matrix <REAL> * gen_rmat_matrix(World  & dw,
   return preprocess_graph(n,dw,A_pre,remove_singlets,n_nnz,max_ewht);
 }
 
-Matrix <REAL> gen_uniform_matrix(World & dw,
+Matrix <REAL> * gen_uniform_matrix(World & dw,
                                 int64_t n,
+                                bool remove_singlets,
+                                int64_t * n_nnz,
                                 double  sp,
                                 int64_t  max_ewht){
   Semiring<REAL> s(MAX_REAL,
@@ -205,7 +207,7 @@ Matrix <REAL> gen_uniform_matrix(World & dw,
                   [](REAL a, REAL b){ return a+b; });
 
   //random adjacency matrix
-  Matrix<REAL> A(n, n, SP, dw, s, "A");
+  Matrix<REAL> * A = new Matrix<REAL>(n, n, SP, dw, s, "A");
 
   //fill with values in the range of [1,min(n*n,100)]
   srand(dw.rank+1);
@@ -213,7 +215,7 @@ Matrix <REAL> gen_uniform_matrix(World & dw,
   int nmy = ((int)std::max((int)(n*sp),(int)1))*((int)((n+dw.np-1)/dw.np));
   int64_t inds[nmy];
   REAL vals[nmy];
-  int i=0;
+  uint64_t i=0;
   for (int64_t row=dw.rank*n/dw.np; row<(int)(dw.rank+1)*n/dw.np; row++){
     int64_t cols[std::max((int)(n*sp),1)];
     for (int64_t col=0; col<std::max((int)(n*sp),1); col++){
@@ -226,17 +228,18 @@ Matrix <REAL> gen_uniform_matrix(World & dw,
         }
       } while (is_rep);
       inds[i] = cols[col]*n+row;
-      vals[i] = (rand()%max_ewht)+1;
+      vals[i] = (rand()%10000)+1;
       i++;
     }
   }
-  A.write(i,inds,vals);
+  A->write(i,inds,vals);
 
-  A["ii"] = 0;
+  (*A)["ii"] = 0;
 
   //keep only values smaller than 20 (about 20% sparsity)
   //A.sparsify([=](int a){ return a<sp*100; });
-   return A;
+  return preprocess_graph(n,dw,A,remove_singlets,n_nnz,max_ewht);
+  //return A;
 }
 
 Matrix<REAL>* generate_kronecker(World* w, int order)

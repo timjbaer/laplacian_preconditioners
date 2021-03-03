@@ -45,18 +45,18 @@ class Graph {
 
 uint64_t gen_graph(int scale, int edgef, uint64_t seed, uint64_t **edges);
 
-Matrix<REAL> * preprocess_graph(int            n,                                         
+Matrix<REAL> * preprocess_graph(int64_t            n,                                         
                                World &        dw,                                       
                                Matrix<REAL> * A_pre,                                    
                                bool           remove_singlets,                          
-                               int *          n_nnz,                                    
+                               int64_t *          n_nnz,                                    
                                int64_t        max_ewht=1);                              
                                                                                       
 Matrix<REAL> * read_matrix(World  &     dw,                                              
-                           int          n,                                              
+                           int64_t          n,                                              
                            const char * fpath,                                          
                            bool         remove_singlets,                                
-                           int *        n_nnz,                                          
+                           int64_t *        n_nnz,                                          
                            int64_t      max_ewht=1);                                    
                                                                                       
 Matrix<REAL> * gen_rmat_matrix(World  & dw,                                              
@@ -64,13 +64,15 @@ Matrix<REAL> * gen_rmat_matrix(World  & dw,
                               int      ef,                                             
                               uint64_t gseed,                                          
                               bool     remove_singlets,                                
-                              int *    n_nnz,                                          
+                              int64_t *    n_nnz,                                          
                               int64_t  max_ewht=1);                                    
                                                                                       
-Matrix<REAL> gen_uniform_matrix(World & dw,                                            
-                                int64_t n,                                            
-                                double  sp=.20,                                       
-                                int64_t  max_ewht=1);                                 
+Matrix <REAL> * gen_uniform_matrix(World & dw,
+                                int64_t n,
+                                bool remove_singlets,
+                                int64_t * n_nnz,
+                                double  sp=0.01,
+                                int64_t  max_ewht=1);
                                                                                       
 Matrix<REAL>* generate_kronecker(World* w, int order);    
 

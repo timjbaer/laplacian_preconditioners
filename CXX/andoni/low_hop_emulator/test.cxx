@@ -27,6 +27,7 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   int64_t n;
   int scale;
   int ef;
+  double sp;
   int prep;
   int k;
   int seed;
@@ -57,6 +58,10 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
     ef = atoi(getCmdOption(input_str, input_str+in_num, "-E"));
     if (ef < 0) ef=16;
   } else ef=0;
+  if (getCmdOption(input_str, input_str+in_num, "-sp")){
+    sp = atof(getCmdOption(input_str, input_str+in_num, "-sp"));
+    if (sp < 0.) sp = 0.2;
+  } else sp = 0.;
   if (getCmdOption(input_str, input_str+in_num, "-prep")){
     prep = atoll(getCmdOption(input_str, input_str+in_num, "-prep"));
     if (prep < 0) prep = 0;
@@ -68,7 +73,7 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   srand(seed);
 
   if (gfile != NULL){ // TODO: have not checked for memory leaks
-    int n_nnz = 0;
+    int64_t n_nnz = 0;
     if (w.rank == 0)
       printf("Reading real graph n = %lld\n", n);
     A = read_matrix(w, n, gfile, prep, &n_nnz);
@@ -80,11 +85,17 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
     A = generate_kronecker(&w, k);
   }
   else if (scale > 0 && ef > 0){
-    int n_nnz = 0;
+    int64_t n_nnz = 0;
     myseed = SEED;
     if (w.rank == 0)
       printf("R-MAT scale = %d ef = %d seed = %lu\n", scale, ef, myseed);
     A = gen_rmat_matrix(w, scale, ef, myseed, prep, &n_nnz, max_ewht);
+  }
+  else if (sp != 0.) {
+    int64_t n_nnz = 0;
+    if (w.rank == 0)
+      printf("uniform matrix n: %lld sparsity: %lf\n", n, sp);
+    A = gen_uniform_matrix(w, n, prep, &n_nnz, sp, max_ewht);
   }
   else {
     if (w.rank == 0) {
