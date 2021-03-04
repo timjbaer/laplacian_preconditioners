@@ -322,7 +322,7 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
       ++niter;
     }
     if (A->wrld->rank == 0)
-      printf("converged in %d iterations\n", niter);
+      printf("converged in %d iterations (do not count iteration where B == B_prev)\n", niter - 1);
   } else {
     if (square) {
       for (int i = 0; i < log2(b); ++i) {
@@ -390,7 +390,7 @@ Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { 
       ++niter;
     }
     if (A->wrld->rank == 0)
-      printf("converged in %d iterations\n", niter);
+      printf("converged in %d iterations (do not count iteration where B == B_prev)\n", niter - 1);
   } else {
     if (square) {
       for (int i = 0; i < log2(b); ++i) {
