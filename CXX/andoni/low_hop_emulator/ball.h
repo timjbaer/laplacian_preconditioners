@@ -324,11 +324,22 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
     if (A->wrld->rank == 0)
       printf("converged in %d iterations\n", niter);
   } else {
-    t_relax.start();
-    for (int i = 0; i < b; ++i) {
-      (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+    if (square) {
+      for (int i = 0; i < log2(b); ++i) {
+        t_relax.start();
+        (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+        t_relax.stop();
+        t_square.start();
+        bvec_to_mat(A, B); // writes B to A
+        t_square.stop();
+      }
+    } else {
+      t_relax.start();
+      for (int i = 0; i < b; ++i) {
+        (*B)["i"] += relax((*A)["ij"], (*B)["j"]);
+      }
+      t_relax.stop();
     }
-    t_relax.stop();
   }
 
   return B;
@@ -381,8 +392,17 @@ Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { 
     if (A->wrld->rank == 0)
       printf("converged in %d iterations\n", niter);
   } else {
-    for (int i = 0; i < b; ++i) {
-      Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
+    if (square) {
+      for (int i = 0; i < log2(b); ++i) {
+        Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
+        t_square.start();
+        bvec_to_mat(A, B); // writes B to A
+        t_square.stop();
+      }
+    } else {
+      for (int i = 0; i < b; ++i) {
+        Multilinear<REAL,bvector<b>,bvector<b>>(A, vec_list, B, f);
+      }
     }
   }
 
