@@ -192,60 +192,76 @@ Monoid< bvector<b> > get_bvector_monoid() {
   return m;
 }
 
+// template<int b>
+// void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) { // TODO: refactor from filter
+//   assert(A->topo->order == 1); // A distributed on 1D processor grid
+//   Timer t_init_closest_edges("init_closest_edges");
+//   t_init_closest_edges.start();
+//   int n = A->nrow; 
+//   int64_t A_npairs;
+//   Pair<REAL> * A_pairs;
+//   A->get_local_pairs(&A_npairs, &A_pairs, true);
+//   std::sort(A_pairs, A_pairs + A_npairs,
+//         std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int n) -> bool
+//                     { return first.k % n < second.k % n; }, 
+//                     std::placeholders::_1, std::placeholders::_2, n)
+//            );
+// 
+//   int np = A->wrld->np;
+//   int64_t off[(int)ceil(n/(float)np)+1];
+//   int vertex = -1;
+//   int nrows = 0;
+//   for (int64_t i = 0; i < A_npairs; ++i) {
+//     if (A_pairs[i].k % n > vertex) {
+//       off[nrows] = i;
+//       vertex = A_pairs[i].k % n;
+//       ++nrows;
+//     }
+//   }
+//   off[nrows] = A_npairs;
+// #ifdef _OPENMP
+//   #pragma omp parallel for
+// #endif
+//   for (int i = 0; i < nrows; ++i) { // sort to filter b closest edges
+//     int nedges = off[i+1] - off[i];
+//     int64_t first = off[i];
+//     int64_t middle = off[i] + (nedges < b ? nedges : b);
+//     int64_t last = off[i] + nedges;
+//     std::partial_sort(A_pairs + first, A_pairs + middle, A_pairs + last, 
+//                   [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
+//                     { return first.d < second.d; }
+//                     );
+//   }
+//   Pair<bvector<b>> bvecs[nrows];
+// #ifdef _OPENMP
+//   #pragma omp parallel for
+// #endif
+//   for (int i = 0; i < nrows; ++i) {
+//     bvecs[i].k = A_pairs[off[i]].k % n;
+//     int nedges = off[i+1] - off[i];
+//     for (int j = 0; j < (nedges < b ? nedges : b); ++j) {
+//       bvecs[i].d.closest_neighbors[j].vertex = A_pairs[off[i] + j].k / n;
+//       bvecs[i].d.closest_neighbors[j].dist = A_pairs[off[i] + j].d;
+//     }
+//   }
+//   B->write(nrows, bvecs); 
+//   delete [] A_pairs;
+//   t_init_closest_edges.stop();
+// }
+
+
 template<int b>
-void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) { // TODO: refactor from filter
-  assert(A->topo->order == 1); // A distributed on 1D processor grid
+void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   Timer t_init_closest_edges("init_closest_edges");
   t_init_closest_edges.start();
   int n = A->nrow; 
-  int64_t A_npairs;
-  Pair<REAL> * A_pairs;
-  A->get_local_pairs(&A_npairs, &A_pairs, true);
-  std::sort(A_pairs, A_pairs + A_npairs,
-        std::bind([](Pair<REAL> const & first, Pair<REAL> const & second, int n) -> bool
-                    { return first.k % n < second.k % n; }, 
-                    std::placeholders::_1, std::placeholders::_2, n)
-           );
-
-  int np = A->wrld->np;
-  int64_t off[(int)ceil(n/(float)np)+1];
-  int vertex = -1;
-  int nrows = 0;
-  for (int64_t i = 0; i < A_npairs; ++i) {
-    if (A_pairs[i].k % n > vertex) {
-      off[nrows] = i;
-      vertex = A_pairs[i].k % n;
-      ++nrows;
-    }
-  }
-  off[nrows] = A_npairs;
-#ifdef _OPENMP
-  #pragma omp parallel for
-#endif
-  for (int i = 0; i < nrows; ++i) { // sort to filter b closest edges
-    int nedges = off[i+1] - off[i];
-    int64_t first = off[i];
-    int64_t middle = off[i] + (nedges < b ? nedges : b);
-    int64_t last = off[i] + nedges;
-    std::partial_sort(A_pairs + first, A_pairs + middle, A_pairs + last, 
-                  [](Pair<REAL> const & first, Pair<REAL> const & second) -> bool
-                    { return first.d < second.d; }
-                    );
-  }
-  Pair<bvector<b>> bvecs[nrows];
-#ifdef _OPENMP
-  #pragma omp parallel for
-#endif
-  for (int i = 0; i < nrows; ++i) {
-    bvecs[i].k = A_pairs[off[i]].k % n;
-    int nedges = off[i+1] - off[i];
-    for (int j = 0; j < (nedges < b ? nedges : b); ++j) {
-      bvecs[i].d.closest_neighbors[j].vertex = A_pairs[off[i] + j].k / n;
-      bvecs[i].d.closest_neighbors[j].dist = A_pairs[off[i] + j].d;
-    }
-  }
-  B->write(nrows, bvecs); 
-  delete [] A_pairs;
+  World * w = A->wrld;
+  Vector<int> v = arange<int>(0, n, 1, *w);
+  (*B)["i"] = Bivar_Function<REAL,int,bvector<b>>([](REAL a, int j){
+    bvector<b> bvec;
+    bvec.closest_neighbors[0] = bpair(j, a);
+    return bvec;
+  })((*A)["ij"], v["j"]);
   t_init_closest_edges.stop();
 }
 
@@ -282,7 +298,7 @@ void bvec_to_mat(Matrix<REAL> * A, Vector<bvector<b>> * B) {
 /***** algorithms *****/
 template<int b>
 Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // see section 3.1 & 3.2
-  assert(A->topo->order == 1); // A distributed on 1D processor grid
+  assert(A->topo->order == 2); // A distributed on 2D processor grid (not strictly necessary but scales better)
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
@@ -347,13 +363,12 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
 
 template<int b>
 Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { // see section 3.4 & 3.5
+  assert(A->topo->order == 2); // A distributed on 2D processor grid (not strictly necessary but scales better)
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
   Vector<bvector<b>> * B = new Vector<bvector<b>>(n, *w, bvector_monoid);
-  init_closest_edges(A, B);
-
-  // assert(A->topo->order == 2); // A distributed on 2D processor grid
+  init_closest_edges<b>(A, B);
 
   std::function<bvector<b>(bvector<b>,REAL,bvector<b>)> f = [](bvector<b> other, REAL a, bvector<b> me){ // me and other are switched since CTF stores col-first
     assert(fabs(MAX_REAL - a) >= EPSILON);

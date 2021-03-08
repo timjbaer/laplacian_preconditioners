@@ -124,7 +124,12 @@ int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B)
 }
 
 Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of filter()
-  Matrix<REAL> * B = new Matrix<REAL>(*A);
+  int np = A->wrld->np;
+  int plens[1] = { np };
+  Partition part(1, plens);
+  Idx_Partition blk;
+  Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, "ij", part["i"], blk, A->symm, *(A->wrld), *(A->sr));
+  (*B)["ij"] = (*A)["ij"]; // change to correct distribution
   for (int i = 0; i < log2(B->nrow); ++i) {
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
   }
@@ -175,16 +180,16 @@ int main(int argc, char** argv)
     //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
     //   if (d < 1 || d > 2) d = 2;
     // }
-    Matrix<REAL> * A;
+    // Matrix<REAL> * A;
     // if (d == 1) { // 1D distribution (block along rows)
-      int plens[1] = { np };
-      Partition part(1, plens);
-      Idx_Partition blk;
-      A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
+    //   int plens[1] = { np };
+    //   Partition part(1, plens);
+    //   Idx_Partition blk;
+    //   A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
     // } else { // default (2D) distribution
-    //   A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
+    Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     // }
-    (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring
+    (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
     (*A)["ii"] = MAX_REAL;
     A->sparsify();
     delete B;
