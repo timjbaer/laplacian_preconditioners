@@ -5,7 +5,9 @@ OPTS      = -O0 -g
 #CXXFLAGS  = -std=c++0x -fopenmp $(OPTS) -Wall -DPROFILE -DPMPI -DMPIIO
 CXXFLAGS  = -std=c++0x $(OPTS) -Wall -Wno-format -DPMPI -DMPIIO
 INCLUDES  = -I$(CTFDIR)/include
-LIBS      = -L$(CTFDIR)/lib -lctf -lblas -llapack -lblas
+#INCLUDES  = -I$(CTFDIR)/include -I/Users/timbaer/lpna/critter/include
+LIBS      = -L$(CTFDIR)/lib -lctf -lblas ../../generator/libgraph_generator_mpi.a -llapack -lblas
+#LIBS      = -L$(CTFDIR)/lib -lctf -lblas ../../generator/libgraph_generator_mpi.a -llapack -lblas -L/Users/timbaer/lpna/critter/lib/libcritter.a
 #LIBS      = -lctf -lblas generator/libgraph_generator_mpi.a -llapack -lblas 
 DEFS      =
 CUDA_ARCH = sm_37
