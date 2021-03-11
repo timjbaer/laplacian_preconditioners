@@ -175,7 +175,8 @@ int main(int argc, char** argv)
   MPI_Comm_size(MPI_COMM_WORLD, &np);
   {
     World w(argc, argv);
-    Matrix<REAL> * B = get_graph(argc, argv, w);
+    Matrix<REAL> * A = get_graph(argc, argv, w);
+    // Matrix<REAL> * B = get_graph(argc, argv, w);
     // if (getCmdOption(input_str, input_str+in_num, "-d")){
     //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
     //   if (d < 1 || d > 2) d = 2;
@@ -187,12 +188,12 @@ int main(int argc, char** argv)
     //   Idx_Partition blk;
     //   A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
     // } else { // default (2D) distribution
-    Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
+    // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
     // }
-    (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
-    (*A)["ii"] = MAX_REAL;
-    A->sparsify();
-    delete B;
+    // (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
+    // (*A)["ii"] = MAX_REAL;
+    // A->sparsify();
+    // delete B;
     if (getCmdOption(input_str, input_str+in_num, "-b")){
       b = atoi(getCmdOption(input_str, input_str+in_num, "-b"));
       if (b < 0) b = 0;
@@ -222,7 +223,12 @@ int main(int argc, char** argv)
       critter::start(critter_mode);
 #endif
       if (A != NULL) {
-        assert(b <= A->nrow);
+        // assert(b <= A->nrow);
+        if (b > A->nrow) {
+          if (w.rank == 0)
+            printf("b is larger than n... setting b=n\n");
+          b = A->nrow;
+        }
         perturb(A);
 #ifdef DEBUG
         if (w.rank == 0)

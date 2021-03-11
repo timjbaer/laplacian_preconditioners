@@ -1,6 +1,19 @@
 #include "graph.h"
 #include "generator/make_graph.h"
 
+#define ADDID MAX_REAL
+#define MULID 0
+
+static Semiring<REAL> MIN_PLUS_SR2(MAX_REAL,
+    [](REAL a, REAL b) {
+      return std::min(a, b);
+    },
+    MPI_MIN,
+    0,
+    [](REAL a, REAL b) {
+      return a + b;
+    });
+
 Int64Pair::Int64Pair(int64_t i1, int64_t i2) {
   this->i1 = i1;
   this->i2 = i2;
@@ -59,23 +72,24 @@ Matrix <REAL> * preprocess_graph(int64_t         n,
                                bool           remove_singlets,
                                int64_t *          n_nnz,
                                int64_t        max_ewht){
-  Semiring<REAL> s(MAX_REAL,
-                  [](REAL a, REAL b){ return std::min(a,b); },
-                  MPI_MIN,
-                  0,
-                  [](REAL a, REAL b){ return a+b; });
+  // Semiring<REAL> s(MAX_REAL,
+  //                 [](REAL a, REAL b){ return std::min(a,b); },
+  //                 MPI_MIN,
+  //                 0,
+  //                 [](REAL a, REAL b){ return a+b; });
 
-  (*A_pre)["ii"] = 0;
+  (*A_pre)["ii"] = ADDID;
 
-  A_pre->sparsify([](int a){ return a>0; });
+  A_pre->sparsify(); // keep only non-addid
+  A_pre->sparsify([](REAL a){ return a>0; }); // keep only positive values
 
   if (dw.rank == 0)
     printf("A contains %ld nonzeros\n", A_pre->nnz_tot);
 
   if (remove_singlets){
     Vector<int> rc(n, dw);
-    rc["i"] += ((Function<REAL>)([](REAL a){ return (int)(a>0); }))((*A_pre)["ij"]);
-    rc["i"] += ((Function<REAL>)([](REAL a){ return (int)(a>0); }))((*A_pre)["ji"]);
+    rc["i"] += ((Function<REAL>)([](REAL a){ return (int)(fabs(ADDID - a) >= 0.0001); }))((*A_pre)["ij"]);
+    rc["i"] += ((Function<REAL>)([](REAL a){ return (int)(fabs(ADDID - a) >= 0.0001); }))((*A_pre)["ji"]);
     int * all_rc; // = (int*)malloc(sizeof(int)*n);
     int64_t nval;
     rc.read_all(&nval, &all_rc);
@@ -91,20 +105,20 @@ Matrix <REAL> * preprocess_graph(int64_t         n,
       }
     }
     if (dw.rank == 0) printf("n_nnz_rc = %d of %d vertices kept, %d are 0-degree, %d are 1-degree\n", n_nnz_rc, n,(n-n_nnz_rc),n_single);
-    Matrix<REAL> * A = new Matrix<REAL>(n_nnz_rc, n_nnz_rc, SP, dw, PLUS_TIMES_SR, "A"); // MIN_TIMES_SR for PTAP
+    Matrix<REAL> * A = new Matrix<REAL>(n_nnz_rc, n_nnz_rc, SP, dw, *(A->sr), "A"); // MIN_TIMES_SR for PTAP
     int * pntrs[] = {all_rc, all_rc};
 
-    A->permute(0, *A_pre, pntrs, 1);
+    A->permute(ADDID, *A_pre, pntrs, MULID);
     delete A_pre;
     free(all_rc);
     if (dw.rank == 0) printf("preprocessed matrix has %ld edges\n", A->nnz_tot);
 
-    (*A)["ii"] = 0;
+    (*A)["ii"] = ADDID;
     *n_nnz = n_nnz_rc;
     return A;
   } else {
     *n_nnz= n;
-    (*A_pre)["ii"] = 0;
+    (*A_pre)["ii"] = ADDID;
     //A_pre.print();
     return A_pre;
   }
@@ -170,7 +184,7 @@ Matrix <REAL> * gen_rmat_matrix(World  & dw,
   uint64_t nedges = 0;
   //random adjacency matrix
   int n = pow(2,scale);
-  Matrix<REAL> * A_pre = new Matrix<REAL>(n, n, SP, dw, PLUS_TIMES_SR, "A_rmat");
+  Matrix<REAL> * A_pre = new Matrix<REAL>(n, n, SP, dw, MIN_PLUS_SR2, "A_rmat");
   if (dw.rank == 0) printf("Running graph generator n = %d... ",n);
   nedges = gen_graph(scale, ef, gseed, &edge);
   if (dw.rank == 0) printf("done.\n");
