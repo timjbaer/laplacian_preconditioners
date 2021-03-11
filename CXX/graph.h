@@ -40,7 +40,7 @@ class Graph {
     Graph();
     ~Graph();
 
-    Matrix<REAL>* adjacencyMatrix(World* world, bool sparse = false);
+    Matrix<REAL>* adjacencyMatrix(World* world, bool sparse = true);
 };
 
 uint64_t gen_graph(int scale, int edgef, uint64_t seed, uint64_t **edges);

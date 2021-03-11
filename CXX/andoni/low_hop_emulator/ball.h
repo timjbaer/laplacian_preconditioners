@@ -299,6 +299,7 @@ void bvec_to_mat(Matrix<REAL> * A, Vector<bvector<b>> * B) {
 template<int b>
 Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // see section 3.1 & 3.2
   assert(A->topo->order == 2); // A distributed on 2D processor grid (not strictly necessary but scales better)
+  assert(A->is_sparse); // not strictly necessary, but much more efficient
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
@@ -364,6 +365,7 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
 template<int b>
 Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { // see section 3.4 & 3.5
   assert(A->topo->order == 2); // A distributed on 2D processor grid (not strictly necessary but scales better)
+  assert(A->is_sparse); // not strictly necessary, but much more efficient
   int n = A->nrow;
   World * w = A->wrld;
   Monoid<bvector<b>> bvector_monoid = get_bvector_monoid<b>();
