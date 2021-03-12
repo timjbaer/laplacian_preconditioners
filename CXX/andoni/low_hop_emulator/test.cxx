@@ -175,7 +175,7 @@ int main(int argc, char** argv)
   MPI_Comm_size(MPI_COMM_WORLD, &np);
   {
     World w(argc, argv);
-    Matrix<REAL> * A = get_graph(argc, argv, w);
+    Matrix<REAL> * B = get_graph(argc, argv, w);
     // Matrix<REAL> * B = get_graph(argc, argv, w);
     // if (getCmdOption(input_str, input_str+in_num, "-d")){
     //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
