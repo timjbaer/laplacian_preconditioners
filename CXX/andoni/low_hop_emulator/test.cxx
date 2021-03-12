@@ -128,7 +128,7 @@ Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of fil
   int plens[1] = { np };
   Partition part(1, plens);
   Idx_Partition blk;
-  Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, "ij", part["i"], blk, A->symm, *(A->wrld), *(A->sr));
+  Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, "ij", part["i"], blk, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
   (*B)["ij"] = (*A)["ij"]; // change to correct distribution
   for (int i = 0; i < log2(B->nrow); ++i) {
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
@@ -149,7 +149,7 @@ int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
  
 int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   int n = A->nrow;
-  Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm, *(A->wrld), *(A->sr));
+  Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
   bvec_to_mat(C, B);
   int64_t s = check_ball(A, C, b);
   delete C;
@@ -189,11 +189,11 @@ int main(int argc, char** argv)
     //   A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
     // } else { // default (2D) distribution
     // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
+    Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
     // }
-    // (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
-    // (*A)["ii"] = MAX_REAL;
-    // A->sparsify();
-    // delete B;
+    (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
+    assert(A->is_sparse); // not strictly necessary, but much more efficient
+    delete B;
     if (getCmdOption(input_str, input_str+in_num, "-b")){
       b = atoi(getCmdOption(input_str, input_str+in_num, "-b"));
       if (b < 0) b = 0;

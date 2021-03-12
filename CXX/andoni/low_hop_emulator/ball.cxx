@@ -70,6 +70,7 @@ void filter(Matrix<REAL> * A, int b) {
 
 /***** matmat *****/
 Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b) { // A should be on (min, +) semiring
+  assert(A->is_sparse); // not strictly necessary, but much more efficient
   int n = A->nrow;
   Matrix<REAL> * B = new Matrix<REAL>(*A);
   Timer t_matmat("matmat");
