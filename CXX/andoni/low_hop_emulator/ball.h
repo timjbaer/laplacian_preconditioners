@@ -193,44 +193,49 @@ bvector<b> bvector_red(bvector<b> const * x,
       y[item] = x[item];
       continue;
     }
+    int nnz = 0;
     bvector<2*b> res;
     for (int i = 0; i < b; ++i) {
-      res.closest_neighbors[i] = y[item].closest_neighbors[i];
-      res.closest_neighbors[i+b] = x[item].closest_neighbors[i];
+      if (y[item].closest_neighbors[i].vertex == -1)
+        break;
+      res.closest_neighbors[nnz] = y[item].closest_neighbors[i];
+      ++nnz;
     }
-    std::sort(res.closest_neighbors, res.closest_neighbors + 2*b, 
+    for (int i = 0; i < b; ++i) {
+      if (x[item].closest_neighbors[i].vertex == -1)
+        break;
+      res.closest_neighbors[nnz] = x[item].closest_neighbors[i];
+      ++nnz;
+    }
+    std::sort(res.closest_neighbors, res.closest_neighbors + nnz, 
                   [](bpair const & first, bpair const & second) -> bool
                     { 
-                      if (first.vertex == -1) // sort (-1, inf) last
-                        return false;
-                      else if (second.vertex == -1) // sort (-1, inf) last
-                        return true;
-                      else if (first.vertex != second.vertex)
+                      if (first.vertex != second.vertex)
                         return first.vertex < second.vertex;
                       else
                         return first.dist < second.dist; // break ties by distance
                     });
-    int nnz = 1; // will be used to sparsify below partial_sort
-    int prev = res.closest_neighbors[0].vertex;
-    for (int i = 1; i < 2*b; ++i) {
+    int prev = res.closest_neighbors[0].vertex; // assumes isolated vertices removed
+    for (int i = 1; i < nnz; ++i) {
       int vertex = res.closest_neighbors[i].vertex;
-      if (vertex == -1) {
-        break;
-      } else if (vertex == prev) {
+      if (vertex == prev) {
         res.closest_neighbors[i].vertex = -1;
         res.closest_neighbors[i].dist = MAX_REAL;
       } else {
         prev = vertex;
       }
-      ++nnz;
     }
-    std::partial_sort(res.closest_neighbors, res.closest_neighbors + std::min(b,nnz), res.closest_neighbors + std::min(2*b,nnz),
+    std::partial_sort(res.closest_neighbors, res.closest_neighbors + std::min(b,nnz), res.closest_neighbors + nnz,
                   [](bpair const & first, bpair const & second) -> bool
                     { return first.dist < second.dist; }
                     );
     for (int i = 0; i < std::min(b,nnz); ++i) {
       y[item].closest_neighbors[i] = res.closest_neighbors[i];
-    } 
+    }
+    for (int i = nnz; i < b; ++i) {
+      y[item].closest_neighbors[i].vertex = -1;
+      y[item].closest_neighbors[i].dist = MAX_REAL;
+    }
   }
   t_bvector_red.stop();
   return *y; // result only used when nitems == 1
