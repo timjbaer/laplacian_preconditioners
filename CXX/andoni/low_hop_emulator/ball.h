@@ -94,8 +94,85 @@ namespace CTF {
   }
 }
 
+// template<int b>
+// bvector<b> bvector_red(bvector<b> const * x, // TODO: optimize merging of sorted lists
+//                  bvector<b> * y,
+//                  int nitems){
+//   Timer t_bvector_red("bvector_red");
+//   t_bvector_red.start();
+// #ifdef _OPENMP
+//   #pragma omp parallel for
+// #endif
+//   for (int item = 0; item < nitems; ++item) {
+//     // FIXME: when can x or y be addid and this is still called?
+//     // assert(x[item].closest_neighbors[0].vertex > -1 && y[item].closest_neighbors[0].vertex > -1); // x nor y are addid
+//     if (x[item].closest_neighbors[0].vertex == -1) {
+//       continue;
+//     } else if (y[item].closest_neighbors[0].vertex == -1) {
+//       y[item] = x[item];
+//       continue;
+//     }
+//     if (x[item].closest_neighbors[0].dist >= y[item].closest_neighbors[b-1].dist)
+//       continue;
+//     bvector<b> * y_prev = (bvector<b> *) malloc(sizeof(bvector<b>));
+//     for (int i = 0; i < b; ++i) {
+//       y_prev->closest_neighbors[i] = y[item].closest_neighbors[i];
+//     }
+//     std::set<int> seen;
+//     int i = 0;
+//     int j = 0;
+//     int k = 0;
+//     while (i < b && j < b && k < b) {
+//       if (x[item].closest_neighbors[i].vertex == -1 || y_prev->closest_neighbors[j].vertex == -1) {
+//         break;
+//       }
+//       if (x[item].closest_neighbors[i].dist < y_prev->closest_neighbors[j].dist) {
+//         int vertex = x[item].closest_neighbors[i].vertex;
+//         if (seen.find(vertex) == seen.end()) {
+//           seen.insert(vertex);
+//           y[item].closest_neighbors[k] = x[item].closest_neighbors[i];
+//           ++k;
+//         }
+//         ++i;
+//       } else {
+//         int vertex = y_prev->closest_neighbors[j].vertex;
+//         if (seen.find(vertex) == seen.end()) {
+//           seen.insert(vertex);
+//           y[item].closest_neighbors[k] = y_prev->closest_neighbors[j];
+//           ++k;
+//         }
+//         ++j;
+//       }
+//     }
+//     if (i == b || x[item].closest_neighbors[i].vertex == -1) {
+//       while (k < b) {
+//         int vertex = y_prev->closest_neighbors[j].vertex;
+//         if (vertex == -1 || seen.find(vertex) == seen.end()) {
+//           seen.insert(vertex);
+//           y[item].closest_neighbors[k] = y_prev->closest_neighbors[j];
+//           ++k;
+//         }
+//         ++j;
+//       }
+//     } else if (j == b || y_prev->closest_neighbors[j].vertex == -1) {
+//       while (k < b) {
+//         int vertex = x[item].closest_neighbors[i].vertex;
+//         if (vertex == -1 || seen.find(vertex) == seen.end()) {
+//           seen.insert(vertex);
+//           y[item].closest_neighbors[k] = x[item].closest_neighbors[i];
+//           ++k;
+//         }
+//         ++i;
+//       }
+//     }
+//     free(y_prev);
+//   }
+//   t_bvector_red.stop();
+//   return *y; // result only used when nitems == 1
+// }
+
 template<int b>
-bvector<b> bvector_red(bvector<b> const * x, // TODO: optimize merging of sorted lists
+bvector<b> bvector_red(bvector<b> const * x,
                  bvector<b> * y,
                  int nitems){
   Timer t_bvector_red("bvector_red");
@@ -104,68 +181,54 @@ bvector<b> bvector_red(bvector<b> const * x, // TODO: optimize merging of sorted
   #pragma omp parallel for
 #endif
   for (int item = 0; item < nitems; ++item) {
-    // FIXME: when can x or y be addid and this is still called?
-    // assert(x[item].closest_neighbors[0].vertex > -1 && y[item].closest_neighbors[0].vertex > -1); // x nor y are addid
     if (x[item].closest_neighbors[0].vertex == -1) {
       continue;
     } else if (y[item].closest_neighbors[0].vertex == -1) {
       y[item] = x[item];
       continue;
     }
-    if (x[item].closest_neighbors[0].dist >= y[item].closest_neighbors[b-1].dist)
+    if (x[item].closest_neighbors[0].dist >= y[item].closest_neighbors[b-1].dist) { // should be taken much more often than below else if due to reordering
       continue;
-    bvector<b> * y_prev = (bvector<b> *) malloc(sizeof(bvector<b>));
+    } else if (y[item].closest_neighbors[0].dist >= x[item].closest_neighbors[b-1].dist) {
+      y[item] = x[item];
+      continue;
+    }
+    bvector<2*b> res;
     for (int i = 0; i < b; ++i) {
-      y_prev->closest_neighbors[i] = y[item].closest_neighbors[i];
+      res.closest_neighbors[i] = y[item].closest_neighbors[i];
+      res.closest_neighbors[i+b] = x[item].closest_neighbors[i];
     }
-    std::set<int> seen;
-    int i = 0;
-    int j = 0;
-    int k = 0;
-    while (i < b && j < b && k < b) {
-      if (x[item].closest_neighbors[i].vertex == -1 || y_prev->closest_neighbors[j].vertex == -1) {
+    std::sort(res.closest_neighbors, res.closest_neighbors + 2*b, 
+                  [](bpair const & first, bpair const & second) -> bool
+                    { 
+                      if (first.vertex == -1) // sort (-1, inf) last
+                        return false;
+                      else if (second.vertex == -1) // sort (-1, inf) last
+                        return true;
+                      else if (first.vertex != second.vertex)
+                        return first.vertex < second.vertex;
+                      else
+                        return first.dist < second.dist; // break ties by distance
+                    });
+    int prev = res.closest_neighbors[0].vertex;
+    for (int i = 1; i < 2*b; ++i) {
+      int vertex = res.closest_neighbors[i].vertex;
+      if (vertex == -1) {
         break;
-      }
-      if (x[item].closest_neighbors[i].dist < y_prev->closest_neighbors[j].dist) {
-        int vertex = x[item].closest_neighbors[i].vertex;
-        if (seen.find(vertex) == seen.end()) {
-          seen.insert(vertex);
-          y[item].closest_neighbors[k] = x[item].closest_neighbors[i];
-          ++k;
-        }
-        ++i;
+      } else if (vertex == prev) {
+        res.closest_neighbors[i].vertex = -1;
+        res.closest_neighbors[i].dist = MAX_REAL;
       } else {
-        int vertex = y_prev->closest_neighbors[j].vertex;
-        if (seen.find(vertex) == seen.end()) {
-          seen.insert(vertex);
-          y[item].closest_neighbors[k] = y_prev->closest_neighbors[j];
-          ++k;
-        }
-        ++j;
+        prev = vertex;
       }
     }
-    if (i == b || x[item].closest_neighbors[i].vertex == -1) {
-      while (k < b) {
-        int vertex = y_prev->closest_neighbors[j].vertex;
-        if (vertex == -1 || seen.find(vertex) == seen.end()) {
-          seen.insert(vertex);
-          y[item].closest_neighbors[k] = y_prev->closest_neighbors[j];
-          ++k;
-        }
-        ++j;
-      }
-    } else if (j == b || y_prev->closest_neighbors[j].vertex == -1) {
-      while (k < b) {
-        int vertex = x[item].closest_neighbors[i].vertex;
-        if (vertex == -1 || seen.find(vertex) == seen.end()) {
-          seen.insert(vertex);
-          y[item].closest_neighbors[k] = x[item].closest_neighbors[i];
-          ++k;
-        }
-        ++i;
-      }
-    }
-    free(y_prev);
+    std::partial_sort(res.closest_neighbors, res.closest_neighbors + b, res.closest_neighbors + 2*b,
+                  [](bpair const & first, bpair const & second) -> bool
+                    { return first.dist < second.dist; }
+                    );
+    for (int i = 0; i < b; ++i) {
+      y[item].closest_neighbors[i] = res.closest_neighbors[i];
+    } 
   }
   t_bvector_red.stop();
   return *y; // result only used when nitems == 1
