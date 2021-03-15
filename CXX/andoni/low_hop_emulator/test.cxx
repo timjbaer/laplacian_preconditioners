@@ -261,7 +261,7 @@ int main(int argc, char** argv)
 #ifdef DEBUG
           if (w.rank == 0)
             printf("ball (via matvec):\n");
-          ball->print(); // FIXME: seems to cause a memory leak. possibly related to "Attempting to use an MPI routine after finalizing MPICH" error
+          ball->print();
           int64_t diff = check_ball(A, ball, b);
           if (w.rank == 0)
             printf("ball (via matvec) diff: %" PRId64 "\n", diff);

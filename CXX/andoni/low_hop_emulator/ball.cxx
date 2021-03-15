@@ -82,36 +82,3 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b) { // A should be on (min, +)
   }
   return B;
 }
-
-/***** common *****/
-bpair bpair_min(bpair a, bpair b){
-  return a.dist < b.dist ? a : b;
-}
-
-void bpair_red(bpair const * a,
-               bpair * b,
-               int n){
-#ifdef _OPENMP
-  #pragma omp parallel for
-#endif
-  for (int i=0; i<n; i++){
-    b[i] = bpair_min(a[i], b[i]);
-  } 
-}
-
-Monoid<bpair> get_bpair_monoid(){ // FIXME: causes "Attempting to use an MPI routine after finalizing MPICH" error
-    MPI_Op omee;
-    MPI_Op_create(
-      [](void * a, void * b, int * n, MPI_Datatype*){ 
-        bpair_red((bpair*)a, (bpair*)b, *n);
-      },
-    1, 
-    &omee);
-
-    Monoid<bpair> MIN_BPAIR(
-      bpair(), 
-      [](bpair a, bpair b){ return bpair_min(a, b); }, 
-      omee);
-
-  return MIN_BPAIR; 
-}
