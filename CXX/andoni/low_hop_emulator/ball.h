@@ -210,6 +210,7 @@ bvector<b> bvector_red(bvector<b> const * x,
                       else
                         return first.dist < second.dist; // break ties by distance
                     });
+    int nnz = 1; // will be used to sparsify below partial_sort
     int prev = res.closest_neighbors[0].vertex;
     for (int i = 1; i < 2*b; ++i) {
       int vertex = res.closest_neighbors[i].vertex;
@@ -221,12 +222,13 @@ bvector<b> bvector_red(bvector<b> const * x,
       } else {
         prev = vertex;
       }
+      ++nnz;
     }
-    std::partial_sort(res.closest_neighbors, res.closest_neighbors + b, res.closest_neighbors + 2*b,
+    std::partial_sort(res.closest_neighbors, res.closest_neighbors + std::min(b,nnz), res.closest_neighbors + std::min(2*b,nnz),
                   [](bpair const & first, bpair const & second) -> bool
                     { return first.dist < second.dist; }
                     );
-    for (int i = 0; i < b; ++i) {
+    for (int i = 0; i < std::min(b,nnz); ++i) {
       y[item].closest_neighbors[i] = res.closest_neighbors[i];
     } 
   }
