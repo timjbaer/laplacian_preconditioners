@@ -327,11 +327,13 @@ void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   int n = A->nrow; 
   World * w = A->wrld;
   Vector<int> v = arange<int>(0, n, 1, *w);
-  (*B)["i"] = Bivar_Function<REAL,int,bvector<b>>([](REAL a, int j){
+  Bivar_Function<REAL,int,bvector<b>> f([](REAL a, int j){
     bvector<b> bvec;
     bvec.closest_neighbors[0] = bpair(j, a);
     return bvec;
-  })((*A)["ij"], v["j"]);
+  });
+  f.intersect_only = true;
+  (*B)["i"] = f((*A)["ij"], v["j"]);
   t_init_closest_edges.stop();
 }
 
