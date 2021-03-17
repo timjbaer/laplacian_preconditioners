@@ -10,7 +10,7 @@ typedef float REAL;
 #define SEED 23
 #define MAX_REAL  (INT_MAX/2)
 #define EPSILON   0.01
-#define BALL_SIZE 16
+#define BALL_SIZE 4
 
 /***** utility *****/
 void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
@@ -44,6 +44,8 @@ class bpair {
       return b1.vertex != b2.vertex || fabs(b1.dist - b2.dist) >= EPSILON;
     }
 };
+
+Monoid<bpair> get_bpair_monoid();
 
 template<int b>
 class bvector {

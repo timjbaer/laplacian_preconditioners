@@ -61,9 +61,10 @@ void filter(Matrix<REAL> * A, int b) {
                     { return first.d < second.d; }
                     );
   }
-  (*A)["ij"] = MAX_REAL;
-  write_first_b(A, A_pairs, A_npairs, b);
+  // (*A)["ij"] = MAX_REAL; // FIXME: why do we need to use set_zero?
+  A->set_zero();
   A->sparsify();
+  write_first_b(A, A_pairs, A_npairs, b);
   delete [] A_pairs;
   t_filter.stop();
 }
@@ -76,9 +77,42 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b) { // A should be on (min, +)
   Timer t_matmat("matmat");
   for (int i = 0; i < log2(n); ++i) {
     t_matmat.start();
-    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+    (*B)["ij"] += (*B)["ik"] * (*B)["kj"]; // FIXME: is this a sparse contraction?
     t_matmat.stop();
     filter(B, b);
   }
   return B;
+}
+
+/***** common *****/
+bpair bpair_min(bpair a, bpair b){
+  return a.dist < b.dist ? a : b;
+}
+
+void bpair_red(bpair const * a,
+               bpair * b,
+               int n){
+#ifdef _OPENMP
+  #pragma omp parallel for
+#endif
+  for (int i=0; i<n; i++){
+    b[i] = bpair_min(a[i], b[i]);
+  } 
+}
+
+Monoid<bpair> get_bpair_monoid(){ // FIXME: causes "Attempting to use an MPI routine after finalizing MPICH" error
+    MPI_Op omee;
+    MPI_Op_create(
+      [](void * a, void * b, int * n, MPI_Datatype*){ 
+        bpair_red((bpair*)a, (bpair*)b, *n);
+      },
+    1, 
+    &omee);
+
+    Monoid<bpair> MIN_BPAIR(
+      bpair(), 
+      [](bpair a, bpair b){ return bpair_min(a, b); }, 
+      omee);
+
+  return MIN_BPAIR; 
 }
