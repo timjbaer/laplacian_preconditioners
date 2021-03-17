@@ -81,7 +81,7 @@ Matrix<T>* PTAP(Matrix<T>* A, Vector<int>* p){
       A_prs[i].k = (A_prs[i].k%n) + pprs[(A_prs[i].k/n)/np].d*n;
     }
   }
-  Matrix<T> * PTAP = new Matrix<T>(n, n, SP*(A->is_sparse), *A->wrld, *A->sr);
+  Matrix<T> * PTAP = new Matrix<T>(n, n, SP*(A->is_sparse), *A->wrld, MIN_PLUS_SR); // FIXME: somewhat hacky
   PTAP->write(nprs, A_prs);
   delete [] A_prs;
   t_ptap.stop();

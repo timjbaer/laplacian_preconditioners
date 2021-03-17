@@ -1,10 +1,13 @@
 #include "low_hop_emulator.h"
 
 Subemulator::Subemulator(Matrix<REAL> * A, int b) { // A is on (min, +)
+  Timer t_subemulator("subemulator");
+  t_subemulator.start();
   assert(A->is_sparse); // not strictly necessary, but much more efficient
   B = ball_matmat(A, b);
   Vector<int> * S = samples(A, b);
   connects(A, S, b);
+  t_subemulator.stop();
 }
 
 Subemulator::~Subemulator() {
@@ -14,6 +17,8 @@ Subemulator::~Subemulator() {
 }
 
 Vector<int> * Subemulator::samples(Matrix<REAL> * A, int b) { // FIXME: vertex 0 is never selected
+  Timer t_samples("samples");
+  t_samples.start();
   int n = A->nrow;
   World * w = A->wrld;
   // if (w->rank == 0) printf("B\n");
@@ -33,10 +38,13 @@ Vector<int> * Subemulator::samples(Matrix<REAL> * A, int b) { // FIXME: vertex 0
   S->sparsify(); // TODO: sparsify earlier?
   // S->print();
   delete is_close;
+  t_samples.stop();
   return S;
 }
 
 void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S, int b) {
+  Timer t_connects("connects");
+  t_connects.start();
   int n = A->nrow;
   World * w = A->wrld;
 
@@ -67,7 +75,8 @@ void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S, int b) {
   // C->print_matrix();
   Vector<int> * q_vertices = new Vector<int>(n, *w);
   (*q_vertices)["i"] = Function<bpair,int>([](bpair pair){ return pair.vertex; })((*q)["i"]);
-  H = PTAP<REAL>(C, q_vertices); // FIXME: put H on (min, +)
+  H = PTAP<REAL>(C, q_vertices);
   delete q_vertices;
   delete C;
+  t_connects.stop();
 }
