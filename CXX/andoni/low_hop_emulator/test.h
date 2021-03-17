@@ -20,7 +20,6 @@ typedef float REAL;
 #define SEED 23
 #define MAX_REAL  (INT_MAX/2)
 #define EPSILON   0.01
-#define BALL_SIZE 16
 
 char* getCmdOption(char ** begin,
                    char ** end,

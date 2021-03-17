@@ -1,6 +1,15 @@
 #include "test.h"
 #include "low_hop_emulator.h"
 
+Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with correct_ball
+  Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
+  (*B)["ij"] = (*A)["ij"];
+  for (int i = 0; i < log2(B->nrow); ++i) {
+    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+  }
+  return B;
+}
+
 int main(int argc, char** argv)
 {
   int const in_num = argc;
@@ -20,15 +29,15 @@ int main(int argc, char** argv)
     //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
     //   if (d < 1 || d > 2) d = 2;
     // }
-    // Matrix<REAL> * A;
+    Matrix<REAL> * A;
     // if (d == 1) { // 1D distribution (block along rows)
-    //   int plens[1] = { np };
-    //   Partition part(1, plens);
-    //   Idx_Partition blk;
-    //   A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
+      int plens[1] = { np };
+      Partition part(1, plens);
+      Idx_Partition blk;
+      A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
     // } else { // default (2D) distribution
     // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
-    Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
+    // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
     // }
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
     assert(A->is_sparse); // not strictly necessary, but much more efficient
@@ -54,6 +63,54 @@ int main(int argc, char** argv)
 #endif
         if (!b)
           b = ceil(log2(A->nrow));
+
+        Subemulator subem(A, b);
+        Matrix<REAL> * H = subem.H;
+        Vector<bpair> * q = subem.q;
+#ifdef DEBUG
+        if (w.rank == 0)
+          printf("subemulator H:\n");
+        H->print_matrix();
+        int64_t A_nnz = A->nnz_tot;
+        int64_t H_nnz = H->nnz_tot;
+        Matrix<REAL> * A_dist = correct_dist(A, b);
+        Matrix<REAL> * H_dist = correct_dist(H, b);
+        Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, MAX_MONOID); // MAX_MONOID is a hack to avoid Transform accumulating
+        Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return x / y; });
+        distortion.intersect_only = true;
+        (*D)["ij"] = distortion((*H_dist)["ij"], (*A_dist)["ij"]);
+        double samp_distort = D->norm_infty();
+        D->set_zero();
+        Transform<REAL>([](REAL & d){ d *= 22; })((*D)["ij"]);
+        Transform<bpair,REAL>([](bpair pr, REAL & d){ d += pr.dist; })((*q)["i"], (*D)["ij"]);
+        Transform<bpair,REAL>([](bpair pr, REAL & d){ d += pr.dist; })((*q)["j"], (*D)["ij"]);
+        Scalar<int64_t> count(w);
+        count[""] = Function<REAL,REAL,int64_t>([](REAL x, REAL y){ return (int64_t)(x > y); })((*D)["ij"], (*A_dist)["ij"]);
+        int64_t cnt = count.get_val();
+        delete H_dist;
+        delete A_dist;
+        delete D;
+        if (w.rank == 0) {
+          printf("subemulator has %" PRId64 " nonzeros\n", H_nnz);
+          int check = (int) (H_nnz <= 0.75 * A_nnz);
+          if (check)
+            printf("passed: subemulator has less than 0.75n edges\n");
+          else 
+            printf("failed: subemulator has more than 0.75n edges\n");
+
+          printf("subemulator max distance distortion between sampled vertices is %f\n", samp_distort);
+          check = (int) (samp_distort >= 1 && samp_distort <= 8);
+          if (check)
+            printf("passed: subemulator preserves distances among sampled vertices\n");
+          else 
+            printf("failed: subemulator does not preserve distances among sampled vertices\n");
+
+          if (cnt == 0)
+            printf("passed: subemulator preserves distances among vertices\n");
+          else 
+            printf("failed: subemulator does not preserve distances among vertices\n");
+        }
+#endif
       }
 #ifdef CRITTER
       critter::stop(critter_mode);
