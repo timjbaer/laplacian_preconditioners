@@ -29,15 +29,15 @@ int main(int argc, char** argv)
     //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
     //   if (d < 1 || d > 2) d = 2;
     // }
-    Matrix<REAL> * A;
+    // Matrix<REAL> * A;
     // if (d == 1) { // 1D distribution (block along rows)
-      int plens[1] = { np };
-      Partition part(1, plens);
-      Idx_Partition blk;
-      A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
+    //   int plens[1] = { np };
+    //   Partition part(1, plens);
+    //   Idx_Partition blk;
+    //   A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
     // } else { // default (2D) distribution
     // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
-    // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
+    Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
     // }
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
     assert(A->is_sparse); // not strictly necessary, but much more efficient
@@ -65,9 +65,9 @@ int main(int argc, char** argv)
           b = ceil(log2(A->nrow));
 
         Subemulator subem(A, b);
+#ifdef DEBUG
         Matrix<REAL> * H = subem.H;
         Vector<bpair> * q = subem.q;
-#ifdef DEBUG
         if (w.rank == 0)
           printf("subemulator H:\n");
         H->print_matrix();
@@ -79,7 +79,10 @@ int main(int argc, char** argv)
         Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return x / y; });
         distortion.intersect_only = true;
         (*D)["ij"] = distortion((*H_dist)["ij"], (*A_dist)["ij"]);
-        double samp_distort = D->norm_infty();
+        double max_distort = D->norm_infty();
+        Scalar<REAL> tot_distort(w);
+        tot_distort[""] = Function<REAL,REAL>([](REAL x){ return x; })((*D)["ij"]);
+        double avg_distort = tot_distort.get_val() / D->nnz_tot;
         D->set_zero();
         Transform<REAL>([](REAL & d){ d *= 22; })((*D)["ij"]);
         Transform<bpair,REAL>([](bpair pr, REAL & d){ d += pr.dist; })((*q)["i"], (*D)["ij"]);
@@ -98,8 +101,9 @@ int main(int argc, char** argv)
           else 
             printf("failed: subemulator has more than 0.75n edges\n");
 
-          printf("subemulator max distance distortion between sampled vertices is %f\n", samp_distort);
-          check = (int) (samp_distort >= 1 && samp_distort <= 8);
+          printf("subemulator max distance distortion between sampled vertices is %f\n", max_distort);
+          printf("subemulator avg distance distortion between sampled vertices is %f\n", avg_distort);
+          check = (int) (max_distort >= 1 && max_distort <= 8);
           if (check)
             printf("passed: subemulator preserves distances among sampled vertices\n");
           else 
