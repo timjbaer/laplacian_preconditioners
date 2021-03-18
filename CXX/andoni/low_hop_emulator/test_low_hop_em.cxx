@@ -54,7 +54,7 @@ int main(int argc, char** argv)
       critter::start(critter_mode);
 #endif
       if (A != NULL) {
-        assert(b <= A->nrow);
+        if (b > A->nrow) b = A->nrow;
         perturb(A);
 #ifdef DEBUG
         if (w.rank == 0)
@@ -95,11 +95,11 @@ int main(int argc, char** argv)
         delete D;
         if (w.rank == 0) {
           printf("subemulator has %" PRId64 " nonzeros\n", H_nnz);
-          int check = (int) (H_nnz <= 0.75 * A_nnz);
+          int check = (int) (H_nnz <= A_nnz + A->nrow * b);
           if (check)
-            printf("passed: subemulator has less than 0.75n edges\n");
+            printf("passed: subemulator has less than m+nb edges\n");
           else 
-            printf("failed: subemulator has more than 0.75n edges\n");
+            printf("failed: subemulator has more than m+nb edges\n");
 
           printf("subemulator max distance distortion between sampled vertices is %f\n", max_distort);
           printf("subemulator avg distance distortion between sampled vertices is %f\n", avg_distort);

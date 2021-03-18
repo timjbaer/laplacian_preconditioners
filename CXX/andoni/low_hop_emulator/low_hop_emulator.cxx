@@ -46,6 +46,15 @@ Vector<int> * Subemulator::samples(Matrix<REAL> * A, int b) {
   // S->print();
   delete is_close;
   t_samples.stop();
+  int64_t S_nnz = S->nnz_tot;
+  if (w->rank == 0) {
+    printf("subemulator has %d vertices\n", S_nnz);
+    int check = (int) (S_nnz <= 0.75*n);
+    if (check)
+      printf("passed: subemulator has less than 0.75n vertices\n");
+    else 
+      printf("failed: subemulator has more than 0.75n vertices\n");
+  }
   return S;
 }
 
