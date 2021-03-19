@@ -10,6 +10,85 @@ Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with co
   return B;
 }
 
+void test_connects(World & w) {
+  int b = 4;
+  int64_t n_nnz = 0;
+  Matrix<REAL> * B = gen_rmat_matrix(w, 3, 8, 23, 0, &n_nnz, MAX_REAL);
+  Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
+  (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
+  delete B;
+  assert(A->is_sparse); // not strictly necessary, but much more efficient
+
+  Subemulator subem(A, b);
+  Matrix<REAL> * H = subem.H;
+  if (w.rank == 0)
+    printf("H:\n");
+  H->print_matrix();
+  
+  Monoid<bpair> bpair_monoid = get_bpair_monoid();
+  Vector<bpair> q(8, w, bpair_monoid);
+  int64_t q_nprs = 8;
+  Pair<bpair> q_prs[q_nprs];
+  q_prs[0].k = 0;
+  q_prs[0].d = bpair(2, 33.000000);
+  q_prs[1].k = 1;
+  q_prs[1].d = bpair(2, 72.000000);
+  q_prs[2].k = 2;
+  q_prs[2].d = bpair(2, MAX_REAL);
+  q_prs[3].k = 3;
+  q_prs[3].d = bpair(2, 67.000000);
+  q_prs[4].k = 4;
+  q_prs[4].d = bpair(6, 183.000000);
+  q_prs[5].k = 5;
+  q_prs[5].d = bpair(6, 77.000000);
+  q_prs[6].k = 6;
+  q_prs[6].d = bpair(6, MAX_REAL);
+  q_prs[7].k = 7;
+  q_prs[7].d = bpair(1, 10.000000);
+  q.write(q_nprs, q_prs);
+
+  Scalar<int> q_diff;
+  q_diff[""] = Function<bpair,bpair,int>([](bpair first, bpair second){ return (int)(first.vertex != second.vertex || fabs(first.dist - second.dist) >= 1); })(q["i"], (*subem.q)["i"]);
+  if (q_diff.get_val() > 0) {
+    if (w.rank == 0)
+      printf("q is wrong, exiting...\n");
+    exit(1);
+  }
+
+  Matrix<REAL> C(8, 8, H->symm|(H->is_sparse*SP), w, MIN_PLUS_SR);
+  int64_t nprs = 7;
+  Pair<REAL> prs[nprs];
+  prs[0].k = 10;
+  prs[0].d = 92;
+  prs[1].k = 14;
+  prs[1].d = 405;
+  prs[2].k = 17;
+  prs[2].d = 92;
+  prs[3].k = 18;
+  prs[3].d = 189;
+  prs[4].k = 22;
+  prs[4].d = 518;
+  prs[5].k = 49;
+  prs[5].d = 405;
+  prs[6].k = 50;
+  prs[6].d = 518;
+  prs[7].k = 54;
+  prs[7].d = 366;
+  C.write(nprs, prs);
+
+  if (w.rank == 0)
+    printf("C:\n");
+  C.print_matrix();
+
+  Scalar<int64_t> diff;
+  diff[""] = Function<REAL,REAL,int64_t>([](REAL h, REAL c){ return (int64_t)(fabs(h - c) >= 1); })((*H)["ij"], C["ij"]);
+  int64_t val = diff.get_val();
+  if (w.rank == 0)
+    printf("diff: %" PRId64 "\n", val);
+
+  delete A;
+}
+
 int main(int argc, char** argv)
 {
   int const in_num = argc;
