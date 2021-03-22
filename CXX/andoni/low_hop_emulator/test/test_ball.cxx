@@ -1,5 +1,5 @@
 #include "test.h"
-#include "ball.h"
+#include "../ball.h"
 
 Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of filter()
   int np = A->wrld->np;

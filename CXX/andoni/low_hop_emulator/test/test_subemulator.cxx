@@ -1,5 +1,5 @@
 #include "test.h"
-#include "low_hop_emulator.h"
+#include "../subemulator.h"
 
 Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with correct_ball
   Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
@@ -10,13 +10,16 @@ Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with co
   return B;
 }
 
-void test_connects(World & w) {
+void test_connects(World & w) { // run on 4 processes
   int b = 4;
   int64_t n_nnz = 0;
   Matrix<REAL> * B = gen_rmat_matrix(w, 3, 8, 23, 0, &n_nnz, MAX_REAL);
   Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
   (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
   delete B;
+  if (w.rank == 0)
+    printf("A:\n");
+  A->print_matrix();
   assert(A->is_sparse); // not strictly necessary, but much more efficient
 
   Subemulator subem(A, b);
@@ -103,6 +106,8 @@ int main(int argc, char** argv)
   MPI_Comm_size(MPI_COMM_WORLD, &np);
   {
     World w(argc, argv);
+    // test_connects(w);
+    // exit(1);
     Matrix<REAL> * B = get_graph(argc, argv, w);
     // if (getCmdOption(input_str, input_str+in_num, "-d")){
     //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));

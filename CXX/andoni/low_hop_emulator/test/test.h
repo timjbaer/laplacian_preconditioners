@@ -13,7 +13,7 @@
 #define TAU_FSTOP(ARG)
 #endif
 
-#include "../../graph.h"
+#include "../../../graph.h"
 
 using namespace CTF;
 typedef float REAL;
