@@ -39,11 +39,4 @@ static Semiring<int> MAX_TIMES_SR(0,
       return a * b;
     });
 
-static Monoid<REAL> MAX_MONOID(0,
-    [](REAL a, REAL b) {
-      return std::max(a,b);
-    },
-    MPI_MAX
-    );
-
 #endif

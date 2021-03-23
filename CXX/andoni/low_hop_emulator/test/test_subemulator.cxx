@@ -4,6 +4,7 @@
 Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with correct_ball
   Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
   (*B)["ij"] = (*A)["ij"];
+  (*B)["ii"] = 0.0;
   for (int i = 0; i < log2(B->nrow); ++i) {
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
   }
@@ -159,8 +160,8 @@ int main(int argc, char** argv)
         int64_t H_nnz = H->nnz_tot;
         Matrix<REAL> * A_dist = correct_dist(A, b);
         Matrix<REAL> * H_dist = correct_dist(H, b);
-        Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, MAX_MONOID); // MAX_MONOID is a hack to avoid Transform accumulating
-        Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return x / y; });
+        Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, PLUS_TIMES_SR);
+        Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return y > 0 ? x / y : 1; });
         distortion.intersect_only = true;
         (*D)["ij"] = distortion((*H_dist)["ij"], (*A_dist)["ij"]);
         double max_distort = D->norm_infty();
