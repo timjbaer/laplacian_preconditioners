@@ -85,7 +85,7 @@ Matrix<REAL>* PTAP(Matrix<REAL>* A, Vector<bpair>* p){
     //use fact p and rows of A are distributed cyclically, to compute P^T * A
     for (int64_t i=0; i<nprs; i++){
       A_prs[i].k = (A_prs[i].k/n)*n + pprs[(A_prs[i].k%n)/np].d.vertex;
-      A_prs[i].d += pprs[(A_prs[i].k%n)/np].d.dist;
+      // A_prs[i].d += pprs[(A_prs[i].k%n)/np].d.dist; // FIXME: not correct
     }
   }
   {
@@ -98,7 +98,7 @@ Matrix<REAL>* PTAP(Matrix<REAL>* A, Vector<bpair>* p){
     //use fact p and cols of A are distributed cyclically, to compute P^T A * P
     for (int64_t i=0; i<nprs; i++){
       A_prs[i].k = (A_prs[i].k%n) + pprs[(A_prs[i].k/n)/np].d.vertex*n;
-      A_prs[i].d += pprs[(A_prs[i].k/n)/np].d.dist;
+      // A_prs[i].d += pprs[(A_prs[i].k/n)/np].d.dist; // FIXME: not correct
     }
   }
   Matrix<REAL> * PTAP = new Matrix<REAL>(n, n, SP*(A->is_sparse), *A->wrld, MIN_PLUS_SR);
@@ -128,6 +128,9 @@ void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S) {
 
   Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm|(A->is_sparse*SP), *w, MIN_PLUS_SR);
   (*C)["ij"] = (*A)["ij"] + (*B)["ij"];
+  C->sparsify();
+  Transform<bpair,REAL>([](bpair pr, REAL & c){ c += pr.dist; })((*q)["i"], (*C)["ij"]); // FIXME: do in PTAP function
+  Transform<bpair,REAL>([](bpair pr, REAL & c){ c += pr.dist; })((*q)["j"], (*C)["ij"]); // FIXME: do in PTAP function
   H = PTAP(C, q);
   delete C;
   t_connects.stop();
