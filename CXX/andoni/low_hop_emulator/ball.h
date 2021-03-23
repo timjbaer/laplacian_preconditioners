@@ -10,7 +10,7 @@ typedef float REAL;
 #define SEED 23
 #define MAX_REAL  (INT_MAX/2)
 #define EPSILON   0.01
-#define BALL_SIZE 16
+#define BALL_SIZE 4
 
 /***** utility *****/
 void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
@@ -231,12 +231,12 @@ void bvec_to_mat(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   (*A)["ij"] = MAX_REAL;
   A->write(A_npairs, A_pairs);
   A->sparsify();
+  delete [] B_pairs;
 }
 
 /***** algorithms *****/
 template<int b>
 Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // see section 3.1 & 3.2
-  assert(A->topo->order == 2 || A->wrld->np < 4); // A distributed on 2D processor grid (not strictly necessary but scales better)
   assert(A->is_sparse); // not strictly necessary, but much more efficient
   int n = A->nrow;
   World * w = A->wrld;
@@ -303,7 +303,6 @@ Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // s
 
 template<int b>
 Vector<bvector<b>> * ball_multilinear(Matrix<REAL> * A, int conv, int square) { // see section 3.4 & 3.5
-  assert(A->topo->order == 2 || A->wrld->np < 4); // A distributed on 2D processor grid (not strictly necessary but scales better)
   assert(A->is_sparse); // not strictly necessary, but much more efficient
   int n = A->nrow;
   World * w = A->wrld;

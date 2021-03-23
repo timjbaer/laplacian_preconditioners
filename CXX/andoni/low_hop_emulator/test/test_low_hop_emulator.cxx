@@ -9,7 +9,7 @@ int main(int argc, char** argv)
   int b=BALL_SIZE;
   int bvec=0;
   int multi=0;
-  // int d=1;
+  int d=2;
   int conv=0;
   int square=0;
 
@@ -21,20 +21,19 @@ int main(int argc, char** argv)
   {
     World w(argc, argv);
     Matrix<REAL> * B = get_graph(argc, argv, w);
-    // if (getCmdOption(input_str, input_str+in_num, "-d")){
-    //   d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
-    //   if (d < 1 || d > 2) d = 2;
-    // }
-    // Matrix<REAL> * A;
-    // if (d == 1) { // 1D distribution (block along rows)
-    //   int plens[1] = { np };
-    //   Partition part(1, plens);
-    //   Idx_Partition blk;
-    //   A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm, w, MIN_PLUS_SR);
-    // } else { // default (2D) distribution
-    // Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm, w, MIN_PLUS_SR);
-    Matrix<REAL> * A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
-    // }
+    if (getCmdOption(input_str, input_str+in_num, "-d")){
+      d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
+      if (d < 1 || d > 2) d = 2;
+    }
+    Matrix<REAL> * A;
+    if (d == 1) { // 1D distribution (block along rows)
+      int plens[1] = { np };
+      Partition part(1, plens);
+      Idx_Partition blk;
+      A = new Matrix<REAL>(B->nrow, B->ncol, "ij", part["i"], blk, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
+    } else { // default (2D) distribution
+      A = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), w, MIN_PLUS_SR);
+    }
     (*A)["ij"] = (*B)["ij"]; // change to (min, +) semiring and correct distribution
     assert(A->is_sparse); // not strictly necessary, but much more efficient
     delete B;

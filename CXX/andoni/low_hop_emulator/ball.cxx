@@ -23,7 +23,7 @@ void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) 
 }
 
 void filter(Matrix<REAL> * A, int b) {
-  assert(A->topo->order == 1); // A distributed on 1D processor grid
+  assert(A->topo->order == 1 || A->wrld->np == 1); // A distributed on 1D processor grid
   Timer t_filter("filter");
   t_filter.start();
   int n = A->nrow; 

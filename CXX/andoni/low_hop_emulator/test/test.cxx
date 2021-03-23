@@ -67,12 +67,16 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
     if (w.rank == 0)
       printf("Reading real graph n = %lld\n", n);
     A = read_matrix(w, n, gfile, prep, &n_nnz);
+    if (w.rank == 0)
+      printf("A is on a %dd distribution\n", A->topo->order);
   }
   else if (k != -1) {
     int64_t matSize = pow(3, k);
     if (w.rank == 0)
       printf("Reading kronecker graph n = %lld\n", matSize);
     A = generate_kronecker(&w, k);
+    if (w.rank == 0)
+      printf("A is on a %dd distribution\n", A->topo->order);
   }
   else if (scale > 0 && ef > 0){
     int64_t n_nnz = 0;
@@ -80,12 +84,16 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
     if (w.rank == 0)
       printf("R-MAT scale = %d ef = %d seed = %lu\n", scale, ef, myseed);
     A = gen_rmat_matrix(w, scale, ef, myseed, prep, &n_nnz, max_ewht);
+    if (w.rank == 0)
+      printf("A is on a %dd distribution\n", A->topo->order);
   }
   else if (sp != 0.) {
     int64_t n_nnz = 0;
     if (w.rank == 0)
       printf("uniform matrix n: %lld sparsity: %lf\n", n, sp);
     A = gen_uniform_matrix(w, n, prep, &n_nnz, sp, max_ewht);
+    if (w.rank == 0)
+      printf("A is on a %dd distribution\n", A->topo->order);
   }
   else {
     if (w.rank == 0) {

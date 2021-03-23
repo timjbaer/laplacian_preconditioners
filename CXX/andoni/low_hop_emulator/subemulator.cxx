@@ -12,7 +12,6 @@ Subemulator::Subemulator(Matrix<REAL> * A, int b_) { // A is on (min, +)
   (*B)["ii"] = MAX_REAL; // ball may contain itself as a closest neighbor
   delete ball;
   assert(B->is_sparse); // not strictly necessary, but much more efficient
-  assert(B->topo->order == 2 || B->wrld->np < 4); // A distributed on 2D processor grid (not strictly necessary but scales better)
   Vector<int> * S = samples();
   connects(A, S);
   t_subemulator.stop();
@@ -63,7 +62,6 @@ Vector<int> * Subemulator::samples() {
 // return B where B[i,j] = A[p[i],p[j]], or if P is P[i,j] = p[i], compute B = P^T A P
 // specialized implementation, see mst for templated implementation
 Matrix<REAL>* PTAP(Matrix<REAL>* A, Vector<bpair>* p){
-  assert(A->topo->order == 2 || A->wrld->np < 4); // A distributed on 2D processor grid (not strictly necessary but scales better)
   Timer t_ptap("ptap");
   t_ptap.start();
   int np = p->wrld->np;
