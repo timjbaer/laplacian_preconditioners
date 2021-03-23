@@ -9,7 +9,6 @@ Subemulator::Subemulator(Matrix<REAL> * A, int b_) { // A is on (min, +)
   B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *A->wrld, *A->sr);
   Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A, 0, 0);
   bvec_to_mat(B, ball);
-  (*B)["ii"] = MAX_REAL; // ball may contain itself as a closest neighbor
   delete ball;
   assert(B->is_sparse); // not strictly necessary, but much more efficient
   Vector<int> * S = samples();
@@ -28,13 +27,15 @@ Vector<int> * Subemulator::samples() {
   t_samples.start();
   int n = B->nrow;
   World * w = B->wrld;
-  // if (w->rank == 0) printf("B\n");
-  // B->print_matrix();
+  // if (w->rank == 0) printf("B\n");
+  // B->print_matrix();
   Vector<int> * S = new Vector<int>(n, *w, MAX_TIMES_SR);
   Vector<int> ID = arange(0, n, 1, *w);
-  (*S)["i"] = Function<int,int>([](int id){ return (int) ((double)rand()/RAND_MAX < 0.5); })(ID["i"]); // ID is not actually needed here
+  S->fill_random(1, 1 + 1.0/SAMPLE_PROB);
+  // Transform<int>([](int & s){ if (s > 1) s = 0; })((*S)["i"]);
+  S->sparsify([](int s){ return s == 1; });
   // S->print();
-  Bivar_Function<REAL,int,int> f([](REAL b, int s){ return s; }); // alternative to making S sparse and returning 1
+  Bivar_Function<REAL,int,int> f([](REAL b, int s){ return s; });
   f.intersect_only = true;
   Vector<int> * is_close = new Vector<int>(n, *w, MAX_TIMES_SR);
   (*is_close)["i"] = f((*B)["ij"],(*S)["j"]);
@@ -42,7 +43,7 @@ Vector<int> * Subemulator::samples() {
   // is_close->print();
   (*S)["i"] += Function<int,int>([](int id){ return id ^ 1; })((*is_close)["i"]);
   (*S)["i"] = (*S)["i"] * ID["i"]; // FIXME: key-value pair (0,0) is always written but since value 0 is addid, vertex 0 is never selected as a leader
-  S->sparsify(); // TODO: sparsify earlier?
+  S->sparsify();
   // if (w->rank == 0) printf("S\n");
   // S->print();
   delete is_close;
@@ -117,9 +118,11 @@ void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S) {
 
   Monoid<bpair> bpair_monoid = get_bpair_monoid();
   q = new Vector<bpair>(n, *w, bpair_monoid);
-  Bivar_Function<REAL,int,bpair> f([](REAL a, int s){ return bpair(s, a); });
+  Bivar_Function<REAL,int,bpair> f([](REAL a, int s){ return bpair(s, a); }); // isolated vertices will write (-1, \inf), see below Transform for fix
   f.intersect_only = true;
   (*q)["i"] = f((*B)["ij"], (*S)["j"]);
+  Vector<int> ID = arange(0, n, 1, *w);
+  Transform<int,bpair>([](int id, bpair & pr){ if (pr.vertex == -1) pr = bpair(id, 0.0); })(ID["i"], (*q)["i"]); // densifies q, necessary for PTAP
 
   if (w->rank == 0) printf("q\n");
   q->print();

@@ -3,6 +3,8 @@
 
 #include "ball.h"
 
+#define SAMPLE_PROB 0.5
+
 class Subemulator {
   public:
     Matrix<REAL> * H; // subemulator
