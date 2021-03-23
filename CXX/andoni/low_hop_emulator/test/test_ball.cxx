@@ -8,6 +8,7 @@ Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of fil
   Idx_Partition blk;
   Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, "ij", part["i"], blk, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
   (*B)["ij"] = (*A)["ij"]; // change to correct distribution
+  (*B)["ii"] = 0.0;
   for (int i = 0; i < log2(B->nrow); ++i) {
     (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
   }

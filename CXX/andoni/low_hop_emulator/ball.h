@@ -193,13 +193,17 @@ void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   int n = A->nrow; 
   World * w = A->wrld;
   Vector<int> v = arange<int>(0, n, 1, *w);
+  Transform<int,bvector<b>>([](int i, bvector<b> & bvec){ 
+    bvec.closest_neighbors[0].vertex = i; bvec.closest_neighbors[0].dist = 0.0; // a vertex is one of its closest neighbors
+  })(v["i"], (*B)["i"]);
   Bivar_Function<REAL,int,bvector<b>> f([](REAL a, int j){
     bvector<b> bvec;
     bvec.closest_neighbors[0] = bpair(j, a);
     return bvec;
   });
   f.intersect_only = true;
-  (*B)["i"] = f((*A)["ij"], v["j"]);
+  // (*B)["i"] = f((*A)["ij"], v["j"]);
+  (*B)["i"] += f((*A)["ij"], v["j"]);
   t_init_closest_edges.stop();
 }
 

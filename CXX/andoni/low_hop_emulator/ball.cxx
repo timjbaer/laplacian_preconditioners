@@ -74,6 +74,7 @@ Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b) { // A should be on (min, +)
   assert(A->is_sparse); // not strictly necessary, but much more efficient
   int n = A->nrow;
   Matrix<REAL> * B = new Matrix<REAL>(*A);
+  (*B)["ii"] = 0.0;
   Timer t_matmat("matmat");
   for (int i = 0; i < log2(n); ++i) {
     t_matmat.start();
