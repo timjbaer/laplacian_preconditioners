@@ -21,6 +21,8 @@ typedef float REAL;
 #define MAX_REAL  (INT_MAX/2)
 #define EPSILON   0.01
 
+Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b);
+
 char* getCmdOption(char ** begin,
                    char ** end,
                    const   std::string & option);

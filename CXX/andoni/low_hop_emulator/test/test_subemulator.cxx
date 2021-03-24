@@ -1,16 +1,6 @@
 #include "test.h"
 #include "../subemulator.h"
 
-Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with correct_ball
-  Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
-  (*B)["ij"] = (*A)["ij"];
-  (*B)["ii"] = 0.0;
-  for (int i = 0; i < log2(B->nrow); ++i) {
-    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
-  }
-  return B;
-}
-
 void test_connects(World & w) { // run on 4 processes
   int b = 4;
   int64_t n_nnz = 0;

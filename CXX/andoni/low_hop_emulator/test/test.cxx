@@ -1,5 +1,16 @@
 #include "test.h"
 
+Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with correct_ball
+  Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
+  (*B)["ij"] = (*A)["ij"];
+  (*B)["ii"] = 0.0;
+  for (int i = 0; i < log2(B->nrow); ++i) {
+    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+  }
+  return B;
+}
+
+
 char* getCmdOption(char ** begin,
                    char ** end,
                    const   std::string & option) {
