@@ -44,13 +44,15 @@ int main(int argc, char** argv)
       if (A != NULL) {
         LowHopEmulator lhe(A, b, mode);
 #ifdef DEBUG
-        Matrix<REAL> * G = lhe.G;
-        if (w.rank == 0)
-          printf("low hop emulator\n");
-        G->print_matrix();
-        int64_t G_nnz = G->nnz_tot;
+        int64_t G_nnz = 0;
+        if (mode) {
+          if (w.rank == 0)
+            printf("low hop emulator\n");
+          lhe.G->print_matrix();
+          G_nnz = lhe.G->nnz_tot;
+        }
         Matrix<REAL> * A_dist = correct_dist(A, b);
-        Matrix<REAL> * G_dist = correct_dist(G, b); // TODO: compute in O(\log \log k) iterations
+        Matrix<REAL> * G_dist = lhe.sssp();
         Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, PLUS_TIMES_SR);
         Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return y > 0 ? x / y : 1; });
         distortion.intersect_only = true;
@@ -63,16 +65,17 @@ int main(int argc, char** argv)
         delete A_dist;
         delete D;
         if (w.rank == 0) {
-          printf("low hop emulator has %" PRId64 " nonzeros\n", G_nnz);
+          if (mode)
+            printf("low hop emulator has %" PRId64 " nonzeros\n", G_nnz);
           printf("low hop emulator max distance distortion between vertices is %f\n", max_distort);
           printf("low hop emulator avg distance distortion between vertices is %f\n", avg_distort);
         }
 #endif
+        delete A;
       }
 #ifdef CRITTER
       critter::stop(critter_mode);
 #endif
-    delete A;
   }
   MPI_Finalize();
   return 0;

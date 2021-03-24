@@ -16,10 +16,16 @@ Subemulator::Subemulator(Matrix<REAL> * A, int b_) { // A is on (min, +)
   t_subemulator.stop();
 }
 
+Subemulator::Subemulator(Matrix<REAL> * H_, Vector<bpair> * q_, int b_) {
+  H = H_;
+  q = q_;
+  b = b_; 
+}
+
 Subemulator::~Subemulator() {
   delete H;
   delete q;
-  delete B;
+  // delete B;
 }
 
 Vector<int> * Subemulator::samples() {

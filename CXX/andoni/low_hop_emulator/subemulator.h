@@ -9,10 +9,12 @@ class Subemulator {
   public:
     Matrix<REAL> * H; // subemulator
     Vector<bpair> * q; // leaders
+    Matrix<REAL> * B; // ball // TODO: delete, pass as parameter instead
     int b; // ball size
-    Matrix<REAL> * B; // ball
 
-    Subemulator(Matrix<REAL> * A, int b);
+    Subemulator(Matrix<REAL> * A, int b_);
+
+    Subemulator(Matrix<REAL> * H_, Vector<bpair> * q_, int b_);
 
     ~Subemulator();
 
