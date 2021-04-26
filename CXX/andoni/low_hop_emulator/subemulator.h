@@ -41,4 +41,14 @@ static Semiring<int> MAX_TIMES_SR(0,
       return a * b;
     });
 
+static Semiring<REAL> MIN_TIMES_SR(MAX_REAL,
+    [](REAL a, REAL b) {
+      return std::min(a, b);
+    },
+    MPI_MIN,
+    1,
+    [](REAL a, REAL b) {
+      return (fabs(a - MAX_REAL) >= EPSILON && fabs(b - MAX_REAL) >= EPSILON) ? a * b : MAX_REAL;
+    });
+
 #endif

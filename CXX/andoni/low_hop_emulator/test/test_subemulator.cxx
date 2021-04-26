@@ -98,8 +98,6 @@ int main(int argc, char** argv)
   MPI_Comm_size(MPI_COMM_WORLD, &np);
   {
     World w(argc, argv);
-    // test_connects(w);
-    // exit(1);
     Matrix<REAL> * B = get_graph(argc, argv, w);
     if (getCmdOption(input_str, input_str+in_num, "-d")){
       d = atoi(getCmdOption(input_str, input_str+in_num, "-d"));
@@ -146,8 +144,10 @@ int main(int argc, char** argv)
         if (w.rank == 0)
           printf("subemulator H:\n");
         H->print_matrix();
+        // check number of edges
         int64_t A_nnz = A->nnz_tot;
         int64_t H_nnz = H->nnz_tot;
+        // check distances are preserved for sampled vertices 
         Matrix<REAL> * A_dist = correct_dist(A, b);
         Matrix<REAL> * H_dist = correct_dist(H, b);
         Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, PLUS_TIMES_SR);
@@ -158,13 +158,28 @@ int main(int argc, char** argv)
         Scalar<REAL> tot_distort(w);
         tot_distort[""] = Function<REAL,REAL>([](REAL x){ return x; })((*D)["ij"]);
         double avg_distort = tot_distort.get_val() / D->nnz_tot;
-        D->set_zero();
-        Transform<REAL>([](REAL & d){ d *= 22; })((*D)["ij"]);
-        Transform<bpair,REAL>([](bpair pr, REAL & d){ d += pr.dist; })((*q)["i"], (*D)["ij"]);
-        Transform<bpair,REAL>([](bpair pr, REAL & d){ d += pr.dist; })((*q)["j"], (*D)["ij"]);
-        Scalar<int64_t> count(w);
-        count[""] = Function<REAL,REAL,int64_t>([](REAL x, REAL y){ return (int64_t)(x > y); })((*D)["ij"], (*A_dist)["ij"]);
-        int64_t cnt = count.get_val();
+        // check distances are preserved for all vertices (including non-sampled)
+        Matrix<REAL> * P = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, MIN_TIMES_SR);
+        int64_t q_nprs;
+        Pair<bpair> * q_prs;
+        q->get_local_pairs(&q_nprs, &q_prs);
+        Pair<REAL> p_prs[q_nprs];
+        for (int64_t i = 0; i < q_nprs; ++i) {
+          p_prs[i].k = q_prs[i].k + q_prs[i].d.vertex*A->nrow;
+          p_prs[i].d = 1;
+        }
+        P->write(q_nprs, p_prs);
+        Matrix<REAL> * E = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, MIN_TIMES_SR);
+        (*E)["ij"] = (*P)["il"] * (*H_dist)["lk"] * (*P)["jk"]; // TODO: some floating point issues
+        (*E)["ii"] = 0.0;
+        Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["i"], (*E)["ij"]);
+        Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["j"], (*E)["ij"]);
+        (*D)["ij"] = distortion((*E)["ij"], (*A_dist)["ij"]);
+        double max_distort_all = D->norm_infty();
+        tot_distort[""] = Function<REAL,REAL>([](REAL x){ return x; })((*D)["ij"]);
+        double avg_distort_all = tot_distort.get_val() / D->nnz_tot;
+        delete E;
+        delete P;
         delete H_dist;
         delete A_dist;
         delete D;
@@ -184,10 +199,12 @@ int main(int argc, char** argv)
           else 
             printf("failed: subemulator does not preserve distances among sampled vertices\n");
 
-          if (cnt == 0)
-            printf("passed: subemulator preserves distances among vertices\n");
-          else 
-            printf("failed: subemulator does not preserve distances among vertices\n");
+          printf("subemulator max distance distortion between all vertices is %f\n", max_distort_all);
+          printf("subemulator avg distance distortion between all vertices is %f\n", avg_distort_all);
+          // if (cnt == 0)
+          //   printf("passed: subemulator preserves distances among all vertices\n");
+          // else 
+          //   printf("failed: subemulator does not preserve distances among all vertices\n");
         }
 #endif
       }
