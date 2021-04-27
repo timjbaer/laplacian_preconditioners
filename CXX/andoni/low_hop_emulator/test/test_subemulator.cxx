@@ -150,6 +150,7 @@ int main(int argc, char** argv)
         // check distances are preserved for sampled vertices 
         Matrix<REAL> * A_dist = correct_dist(A, b);
         Matrix<REAL> * H_dist = correct_dist(H, b);
+        int64_t A_dist_nnz = A_dist->nnz_tot;
         Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, PLUS_TIMES_SR);
         Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return y > 0 ? x / y : 1; });
         distortion.intersect_only = true;
@@ -174,6 +175,7 @@ int main(int argc, char** argv)
         (*E)["ii"] = 0.0;
         Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["i"], (*E)["ij"]);
         Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["j"], (*E)["ij"]);
+        int64_t E_nnz = E->nnz_tot;
         (*D)["ij"] = distortion((*E)["ij"], (*A_dist)["ij"]);
         double max_distort_all = D->norm_infty();
         tot_distort[""] = Function<REAL,REAL>([](REAL x){ return x; })((*D)["ij"]);
@@ -184,6 +186,7 @@ int main(int argc, char** argv)
         delete A_dist;
         delete D;
         if (w.rank == 0) {
+          // check distances in subemulator
           printf("subemulator has %" PRId64 " nonzeros\n", H_nnz);
           int check = (int) (H_nnz <= A_nnz + A->nrow * b);
           if (check)
@@ -199,12 +202,15 @@ int main(int argc, char** argv)
           else 
             printf("failed: subemulator does not preserve distances among sampled vertices\n");
 
-          printf("subemulator max distance distortion between all vertices is %f\n", max_distort_all);
-          printf("subemulator avg distance distortion between all vertices is %f\n", avg_distort_all);
-          // if (cnt == 0)
-          //   printf("passed: subemulator preserves distances among all vertices\n");
-          // else 
-          //   printf("failed: subemulator does not preserve distances among all vertices\n");
+          // check distances in correction of subemulator (ie subemulator + distances to leaders)
+          printf("subemulator correction contains %" PRId64 " distances\n", E_nnz);
+          if (E_nnz == A_dist_nnz)
+            printf("passed: subemulator correction has same connectivity as original graph\n");
+          else
+            printf("failed: subemulator correction does not have the same connecitivity as original graph \n");
+
+          printf("subemulator correction max distance distortion between all vertices is %f\n", max_distort_all);
+          printf("subemulator correction avg distance distortion between all vertices is %f\n", avg_distort_all);
         }
 #endif
       }
