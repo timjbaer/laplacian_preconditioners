@@ -118,10 +118,6 @@ void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S) {
   t_connects.start();
   int n = A->nrow;
   World * w = A->wrld;
-
-  if (w->rank == 0) printf("B\n");
-  B->print_matrix();
-
   Monoid<bpair> bpair_monoid = get_bpair_monoid();
   q = new Vector<bpair>(n, *w, bpair_monoid);
   Bivar_Function<REAL,int,bpair> f([](REAL a, int s){ return bpair(s, a); }); // isolated vertices will write (-1, \inf), see below Transform for fix
@@ -129,10 +125,6 @@ void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S) {
   (*q)["i"] = f((*B)["ij"], (*S)["j"]);
   Vector<int> ID = arange(0, n, 1, *w);
   Transform<int,bpair>([](int id, bpair & pr){ if (pr.vertex == -1) pr = bpair(id, 0.0); })(ID["i"], (*q)["i"]); // densifies q, necessary for PTAP
-
-  if (w->rank == 0) printf("q\n");
-  q->print();
-
   Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm|(A->is_sparse*SP), *w, MIN_PLUS_SR);
   (*C)["ij"] = (*A)["ij"] + (*B)["ij"];
   C->sparsify();

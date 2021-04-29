@@ -138,18 +138,20 @@ int main(int argc, char** argv)
           b = ceil(log2(A->nrow));
 
         Subemulator subem(A, b);
-#ifdef DEBUG
+#if defined TEST || defined DEBUG
         Matrix<REAL> * H = subem.H;
         Vector<bpair> * q = subem.q;
+#ifdef DEBUG
         if (w.rank == 0)
           printf("subemulator H:\n");
         H->print_matrix();
+#endif
         // check number of edges
         int64_t A_nnz = A->nnz_tot;
         int64_t H_nnz = H->nnz_tot;
         // check distances are preserved for sampled vertices 
         Matrix<REAL> * A_dist = correct_dist(A, b);
-        Matrix<REAL> * H_dist = correct_dist(H, b);
+        Matrix<REAL> * H_dist = correct_dist(H, b, "subemulator");
         int64_t A_dist_nnz = A_dist->nnz_tot;
         Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, PLUS_TIMES_SR);
         Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return y > 0 ? x / y : 1; });
@@ -205,9 +207,9 @@ int main(int argc, char** argv)
           // check distances in correction of subemulator (ie subemulator + distances to leaders)
           printf("subemulator correction contains %" PRId64 " distances\n", E_nnz);
           if (E_nnz == A_dist_nnz)
-            printf("passed: subemulator correction has same connectivity as original graph\n");
+            printf("passed: subemulator correction has same connectivity as input graph\n");
           else
-            printf("failed: subemulator correction does not have the same connecitivity as original graph \n");
+            printf("failed: subemulator correction does not have the same connecitivity as input graph \n");
 
           printf("subemulator correction max distance distortion between all vertices is %f\n", max_distort_all);
           printf("subemulator correction avg distance distortion between all vertices is %f\n", avg_distort_all);

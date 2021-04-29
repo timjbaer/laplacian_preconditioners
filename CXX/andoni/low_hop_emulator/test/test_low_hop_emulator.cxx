@@ -43,16 +43,27 @@ int main(int argc, char** argv)
 #endif
       if (A != NULL) {
         LowHopEmulator lhe(A, b, mode);
-#ifdef DEBUG
         int64_t G_nnz = 0;
         if (mode) {
+#ifdef DEBUG
+          if (w.rank == 0)
+            printf("input graph\n");
+          A->print_matrix();
           if (w.rank == 0)
             printf("low hop emulator\n");
           lhe.G->print_matrix();
+#endif
           G_nnz = lhe.G->nnz_tot;
         }
+#if defined TEST || defined DEBUG
         Matrix<REAL> * A_dist = correct_dist(A, b);
-        Matrix<REAL> * G_dist = lhe.sssp();
+        Matrix<REAL> * G_dist = lhe.apsp();
+        int64_t A_dist_nnz = 0;
+        int64_t G_dist_nnz = 0;
+        if (mode) {
+          A_dist_nnz = A_dist->nnz_tot;
+          G_dist_nnz = G_dist->nnz_tot;
+        }
         Matrix<REAL> * D = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, PLUS_TIMES_SR);
         Bivar_Function<REAL,REAL,REAL> distortion([](REAL x, REAL y){ return y > 0 ? x / y : 1; });
         distortion.intersect_only = true;
@@ -61,12 +72,24 @@ int main(int argc, char** argv)
         Scalar<REAL> tot_distort(w);
         tot_distort[""] = Function<REAL,REAL>([](REAL x){ return x; })((*D)["ij"]);
         double avg_distort = tot_distort.get_val() / D->nnz_tot;
+#ifdef DEBUG
+        if (w.rank == 0) printf("distances in low hop emulator\n");
+        G_dist->print_matrix();
+        if (w.rank == 0) printf("distances in input graph\n");
+        A_dist->print_matrix();
+#endif
         delete G_dist;
         delete A_dist;
         delete D;
         if (w.rank == 0) {
-          if (mode)
+          if (mode) {
             printf("low hop emulator has %" PRId64 " nonzeros\n", G_nnz);
+            printf("low hop emulator contains %" PRId64 " distances\n", G_dist_nnz);
+            if (G_dist_nnz == A_dist_nnz)
+              printf("passed: low hop emulator has same connectivity as input graph\n");
+            else
+              printf("failed: low hop emulator does not have the same connectivity as input graph \n");
+          }
           printf("low hop emulator max distance distortion between vertices is %f\n", max_distort);
           printf("low hop emulator avg distance distortion between vertices is %f\n", avg_distort);
         }

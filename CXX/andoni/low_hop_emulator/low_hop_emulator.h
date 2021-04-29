@@ -3,7 +3,7 @@
 
 #include "subemulator.h"
 
-#define NUM_LEVELS 2
+#define NUM_LEVELS 1
 #define PENALTY    1.0
 #define K          10
 
@@ -17,13 +17,14 @@ class LowHopEmulator {
     LowHopEmulator(Matrix<REAL> * A, int b, int mode=0);
     ~LowHopEmulator();
 
-    Matrix<REAL> * sssp();
+    Matrix<REAL> * sssp(int vertex);
+    Matrix<REAL> * apsp();
 
   private:
     void hierarchy(Matrix<REAL> * A, int b);
     void collapse(Matrix<REAL> * A);
-    Matrix<REAL> * sssp_hierarchy();
-    Matrix<REAL> * sssp_collapse();
+    Matrix<REAL> * sssp_hierarchy(int vertex);
+    Matrix<REAL> * sssp_collapse(int vertex);
 };
 
 #endif

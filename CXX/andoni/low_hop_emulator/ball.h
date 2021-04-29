@@ -1,15 +1,8 @@
 #ifndef __BALL_H__
 #define __BALL_H__
 
-#include <ctf.hpp>
-#include <float.h>
-#include <math.h>
+#include "shared.h"
 
-using namespace CTF;
-typedef float REAL;
-#define SEED 23
-#define MAX_REAL  (INT_MAX/2)
-#define EPSILON   0.01
 #define BALL_SIZE 4
 
 /***** utility *****/

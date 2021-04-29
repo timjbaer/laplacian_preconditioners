@@ -1,12 +1,18 @@
 #include "test.h"
 
-Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b) { // TODO: refactor with correct_ball
-  Matrix<REAL> * B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *(A->wrld), *(A->sr));
-  (*B)["ij"] = (*A)["ij"];
+Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b, char * name) { // TODO: refactor with correct_ball
+  Matrix<REAL> * B = new Matrix<REAL>(*A);
   (*B)["ii"] = 0.0;
-  for (int i = 0; i < log2(B->nrow); ++i) {
-    (*B)["ij"] += (*B)["ik"] * (*B)["kj"];
+  Matrix<REAL> * B_prev = new Matrix<REAL>(B->nrow, B->ncol, B->symm|(B->is_sparse*SP), *B->wrld, *B->sr);
+  int hops = 0;
+  while (are_matrices_different(B, B_prev)) {
+    (*B_prev)["ij"] = (*B)["ij"];
+    (*B)["ij"] += (*A)["ik"] * (*B)["kj"];
+    ++hops;
   }
+  if (B->wrld->rank == 0)
+    printf("%s graph has %d hops\n", name, hops);
+  delete B_prev;
   return B;
 }
 
@@ -123,11 +129,4 @@ void perturb(Matrix<REAL> * A) {
   }
   A->write(A_npairs, A_loc_pairs); 
   delete [] A_loc_pairs;
-}
-
-int64_t are_matrices_different(Matrix<REAL> * A, Matrix<REAL> * B)
-{
-  Scalar<int64_t> s;
-  s[""] += Function<REAL,REAL,int64_t>([](REAL a, REAL b){ return (int64_t) fabs(a - b) >= EPSILON; })((*A)["ij"],(*B)["ij"]);
-  return s.get_val();
 }

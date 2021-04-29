@@ -18,9 +18,9 @@ Matrix<REAL> * correct_ball(Matrix<REAL> * A, int b) { // assumes correct of fil
 
 int64_t check_ball(Matrix<REAL> * A, Matrix<REAL> * B, int b) {
   Matrix<REAL> * correct = correct_ball(A, b);
-  if (A->wrld->rank == 0)
-    printf("correct:\n");
-  correct->print_matrix();
+  // if (A->wrld->rank == 0)
+  //   printf("correct:\n");
+  // correct->print_matrix();
   int64_t s = are_matrices_different(correct, B);
   delete correct;
   return s;
@@ -119,6 +119,8 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matmat):\n");
           ball->print_matrix();
+#endif
+#if defined TEST || defined DEBUG
           int64_t diff = check_ball(A, ball, b);
           if (w.rank == 0)
             printf("ball (via matmat) diff: %" PRId64 "\n", diff);
@@ -140,6 +142,8 @@ int main(int argc, char** argv)
           if (w.rank == 0)
             printf("ball (via matvec):\n");
           ball->print();
+#endif
+#if defined TEST || defined DEBUG
           int64_t diff = check_ball(A, ball, b);
           if (w.rank == 0)
             printf("ball (via matvec) diff: %" PRId64 "\n", diff);

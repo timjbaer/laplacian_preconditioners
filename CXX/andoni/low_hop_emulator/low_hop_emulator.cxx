@@ -32,25 +32,37 @@ void LowHopEmulator::hierarchy(Matrix<REAL> * A, int b) {
 void LowHopEmulator::collapse(Matrix<REAL> * A) { // A is passed for its metadata
   G = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *A->wrld, MIN_PLUS_SR);
   for (int i = NUM_LEVELS-1; i >= 0; --i) { // collapse sparsest levels first
-    (*G)["ij"] += pow(PENALTY, i) * (*subems[i]->H)["ij"]; // TODO: is penalty correct?
+    (*G)["ij"] += pow(PENALTY, (NUM_LEVELS-1) - i) * (*subems[i]->H)["ij"]; // TODO: is penalty correct?
   }
 }
 
-Matrix<REAL> * LowHopEmulator::sssp_hierarchy() {
+Matrix<REAL> * LowHopEmulator::sssp_hierarchy(int vertex) {
   return NULL;
 }
 
-Matrix<REAL> * LowHopEmulator::sssp_collapse() {
-  Matrix<REAL> * D = new Matrix<REAL>(*G);
-  for (int i = 0; i < log2(10); ++i) { // TODO: set K correctly
-    (*D)["ij"] += (*G)["ij"] * (*D)["ij"];
-  }
-  return D;
+Matrix<REAL> * LowHopEmulator::sssp_collapse(int vertex) {
+  return NULL;
 }
 
-Matrix<REAL> * LowHopEmulator::sssp() {
+Matrix<REAL> * LowHopEmulator::sssp(int vertex) {
   if (mode)
-    return sssp_collapse();
+    return sssp_collapse(vertex);
   else
-    return sssp_hierarchy();
+    return sssp_hierarchy(vertex);
+}
+
+// all pairs shortest path on collapsed low hop emulator
+Matrix<REAL> * LowHopEmulator::apsp() {
+  Matrix<REAL> * D = new Matrix<REAL>(*G);
+  Matrix<REAL> * D_prev = new Matrix<REAL>(D->nrow, D->ncol, D->symm|(D->is_sparse*SP), *D->wrld, MIN_PLUS_SR);
+  int hops = 0;
+  while (are_matrices_different(D, D_prev)) {
+    (*D_prev)["ij"] = (*D)["ij"];
+    (*D)["ij"] += (*G)["ik"] * (*D)["kj"];
+    ++hops;
+  }
+  if (D->wrld->rank == 0)
+    printf("low hop emulator has %d hops\n", hops);
+  delete D_prev;
+  return D;
 }
