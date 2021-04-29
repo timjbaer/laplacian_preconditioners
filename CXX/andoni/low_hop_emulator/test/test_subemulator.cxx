@@ -173,16 +173,23 @@ int main(int argc, char** argv)
         }
         P->write(q_nprs, p_prs);
         Matrix<REAL> * E = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w, MIN_TIMES_SR);
-        (*E)["ij"] = (*P)["il"] * (*H_dist)["lk"] * (*P)["jk"]; // TODO: some floating point issues
+        Bivar_Function<REAL,REAL,REAL> mxm([](REAL x, REAL y){ return x*y; });
+        mxm.intersect_only = true;
+        (*E)["ij"] = mxm((*P)["ik"], (*H_dist)["kj"]);
+        (*E)["ij"] = mxm((*E)["ik"], (*P)["jk"]);
+        // (*E)["ij"] = (*P)["il"] * (*H_dist)["lk"] * (*P)["jk"]; // TODO: some floating point issues
         (*E)["ii"] = 0.0;
-        Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["i"], (*E)["ij"]);
-        Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["j"], (*E)["ij"]);
-        int64_t E_nnz = E->nnz_tot;
-        (*D)["ij"] = distortion((*E)["ij"], (*A_dist)["ij"]);
+        Matrix<REAL> * F = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), w); // switch to (+, *) semiring
+        (*F)["ij"] = (*E)["ij"];
+        delete E;
+        Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["i"], (*F)["ij"]);
+        Transform<bpair,REAL>([](bpair pr, REAL & a){ a += pr.dist; })((*q)["j"], (*F)["ij"]);
+        int64_t F_nnz = F->nnz_tot;
+        (*D)["ij"] = distortion((*F)["ij"], (*A_dist)["ij"]);
         double max_distort_all = D->norm_infty();
         tot_distort[""] = Function<REAL,REAL>([](REAL x){ return x; })((*D)["ij"]);
         double avg_distort_all = tot_distort.get_val() / D->nnz_tot;
-        delete E;
+        delete F;
         delete P;
         delete H_dist;
         delete A_dist;
@@ -205,8 +212,8 @@ int main(int argc, char** argv)
             printf("failed: subemulator does not preserve distances among sampled vertices\n");
 
           // check distances in correction of subemulator (ie subemulator + distances to leaders)
-          printf("subemulator correction contains %" PRId64 " distances\n", E_nnz);
-          if (E_nnz == A_dist_nnz)
+          printf("subemulator correction contains %" PRId64 " distances\n", F_nnz);
+          if (F_nnz == A_dist_nnz)
             printf("passed: subemulator correction has same connectivity as input graph\n");
           else
             printf("failed: subemulator correction does not have the same connecitivity as input graph \n");
