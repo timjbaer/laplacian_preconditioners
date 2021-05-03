@@ -31,6 +31,7 @@ void LowHopEmulator::hierarchy(Matrix<REAL> * A, int b) {
 
 void LowHopEmulator::collapse(Matrix<REAL> * A) { // A is passed for its metadata
   G = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *A->wrld, MIN_PLUS_SR);
+  (*G)["ii"] = 0.0;
   for (int i = NUM_LEVELS-1; i >= 0; --i) { // collapse sparsest levels first
     (*G)["ij"] += pow(PENALTY, (NUM_LEVELS-1) - i) * (*subems[i]->H)["ij"]; // TODO: is penalty correct?
   }
