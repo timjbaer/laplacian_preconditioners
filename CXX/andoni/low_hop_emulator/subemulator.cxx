@@ -1,25 +1,56 @@
 #include "subemulator.h"
 
-Subemulator::Subemulator(Matrix<REAL> * A, int b_) { // A is on (min, +)
+Subemulator::Subemulator(Matrix<REAL> * A, Matrix<REAL> * B_A, int b_) { // A is on (min, +)
   Timer t_subemulator("subemulator");
   t_subemulator.start();
   assert(A->is_sparse); // not strictly necessary, but much more efficient
+  n = A->nrow;
   b = b_;
-  // B = ball_matmat(A, b);
-  B = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *A->wrld, *A->sr);
-  Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A, 0, 0);
+  w = new World(*A->wrld);
+  assert(B_A->is_sparse); // not strictly necessary, but much more efficient
+  Vector<int> * S = samples(B_A);
+  connects(A, B_A, S);
+  B = new Matrix<REAL>(n, n, A->symm|(A->is_sparse*SP), *w, *A->sr);
+  Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(H, 0, 0);
   bvec_to_mat(B, ball);
   delete ball;
-  assert(B->is_sparse); // not strictly necessary, but much more efficient
-  Vector<int> * S = samples();
-  connects(A, S);
   t_subemulator.stop();
+  if (w->rank == 0) printf("subemulator:\n");
+  H->print_matrix();
+
+  // Matrix<REAL> * Z = new Matrix<REAL>(*H);
+  // (*Z)["ii"] = 0.0;
+  // Matrix<REAL> * Z_prev = new Matrix<REAL>(Z->nrow, Z->ncol, Z->symm|(Z->is_sparse*SP), *Z->wrld, *Z->sr);
+  // int hops = 0;
+  // while (are_matrices_different(Z, Z_prev)) {
+  //   (*Z_prev)["ij"] = (*Z)["ij"];
+  //   (*Z)["ij"] += (*H)["ik"] * (*Z)["kj"];
+  //   ++hops;
+  // }
+  // if (Z->wrld->rank == 0)
+  //   printf("subemulator distances\n");
+  // Z->print_matrix();
+  // if (Z->wrld->rank == 0)
+  //   printf("subemulator has %d hops\n", hops);
 }
 
+Subemulator::Subemulator(Subemulator * A, int b_) : Subemulator(A->H, A->B, b_) { }
+
 Subemulator::Subemulator(Matrix<REAL> * H_, Vector<bpair> * q_, int b_) {
+  Timer t_subemulator("subemulator");
+  t_subemulator.start();
+  n = H_->nrow;
+  w = H_->wrld;
+  b = b_; 
   H = H_;
   q = q_;
-  b = b_; 
+  B = new Matrix<REAL>(n, n, H->symm|(H->is_sparse*SP), *w, *H->sr); // FIXME: make sure symm, is_sparse, and sr are correct
+  Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(H, 0, 0);
+  bvec_to_mat(B, ball);
+  delete ball;
+  t_subemulator.stop();
+  if (w->rank == 0) printf("subemulator:\n");
+  H->print_matrix();
 }
 
 Subemulator::~Subemulator() {
@@ -28,11 +59,9 @@ Subemulator::~Subemulator() {
   // delete B;
 }
 
-Vector<int> * Subemulator::samples() {
+Vector<int> * Subemulator::samples(Matrix<REAL> * B_A) {
   Timer t_samples("samples");
   t_samples.start();
-  int n = B->nrow;
-  World * w = B->wrld;
   // if (w->rank == 0) printf("B\n");
   // B->print_matrix();
   Vector<int> * S = new Vector<int>(n, *w, MAX_TIMES_SR);
@@ -44,7 +73,7 @@ Vector<int> * Subemulator::samples() {
   Bivar_Function<REAL,int,int> f([](REAL b, int s){ return s; });
   f.intersect_only = true;
   Vector<int> * is_close = new Vector<int>(n, *w, MAX_TIMES_SR);
-  (*is_close)["i"] = f((*B)["ij"],(*S)["j"]);
+  (*is_close)["i"] = f((*B_A)["ij"],(*S)["j"]);
   // if (w->rank == 0) printf("is_close\n");
   // is_close->print();
   (*S)["i"] += Function<int,int>([](int id){ return id ^ 1; })((*is_close)["i"]);
@@ -113,20 +142,18 @@ Matrix<REAL>* PTAP(Matrix<REAL>* A, Vector<bpair>* p){
   return PTAP;
 }
 
-void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S) {
+void Subemulator::connects(Matrix<REAL> * A, Matrix<REAL> * B_A, Vector<int> * S) {
   Timer t_connects("connects");
   t_connects.start();
-  int n = A->nrow;
-  World * w = A->wrld;
   Monoid<bpair> bpair_monoid = get_bpair_monoid();
   q = new Vector<bpair>(n, *w, bpair_monoid);
   Bivar_Function<REAL,int,bpair> f([](REAL a, int s){ return bpair(s, a); }); // isolated vertices will write (-1, \inf), see below Transform for fix
   f.intersect_only = true;
-  (*q)["i"] = f((*B)["ij"], (*S)["j"]);
+  (*q)["i"] = f((*B_A)["ij"], (*S)["j"]);
   Vector<int> ID = arange(0, n, 1, *w);
   Transform<int,bpair>([](int id, bpair & pr){ if (pr.vertex == -1) pr = bpair(id, 0.0); })(ID["i"], (*q)["i"]); // densifies q, necessary for PTAP
   Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm|(A->is_sparse*SP), *w, MIN_PLUS_SR);
-  (*C)["ij"] = (*A)["ij"] + (*B)["ij"];
+  (*C)["ij"] = (*A)["ij"] + (*B_A)["ij"];
   C->sparsify();
   Transform<bpair,REAL>([](bpair pr, REAL & c){ c += pr.dist; })((*q)["i"], (*C)["ij"]); // FIXME: do in PTAP function
   Transform<bpair,REAL>([](bpair pr, REAL & c){ c += pr.dist; })((*q)["j"], (*C)["ij"]); // FIXME: do in PTAP function

@@ -2,6 +2,7 @@
 #include "../subemulator.h"
 
 void test_connects(World & w) { // run on 4 processes
+  assert(SAMPLE_PROB == 0.5);
   int b = 4;
   int64_t n_nnz = 0;
   Matrix<REAL> * B = gen_rmat_matrix(w, 3, 8, 23, 0, &n_nnz, MAX_REAL);
@@ -13,7 +14,11 @@ void test_connects(World & w) { // run on 4 processes
   A->print_matrix();
   assert(A->is_sparse); // not strictly necessary, but much more efficient
 
-  Subemulator subem(A, b);
+  Matrix<REAL> * B_A = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *A->wrld, *A->sr);
+  Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A, 0, 0);
+  bvec_to_mat(B_A, ball);
+  delete ball;
+  Subemulator subem(A, B_A, b);
   Matrix<REAL> * H = subem.H;
   if (w.rank == 0)
     printf("H:\n");
@@ -137,7 +142,11 @@ int main(int argc, char** argv)
         if (!b)
           b = ceil(log2(A->nrow));
 
-        Subemulator subem(A, b);
+        Matrix<REAL> * B_A = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *A->wrld, *A->sr);
+        Vector<bvector<BALL_SIZE>> * ball = ball_bvector<BALL_SIZE>(A, 0, 0);
+        bvec_to_mat(B_A, ball);
+        delete ball;
+        Subemulator subem(A, B_A, b);
 #if defined TEST || defined DEBUG
         Matrix<REAL> * H = subem.H;
         Vector<bpair> * q = subem.q;

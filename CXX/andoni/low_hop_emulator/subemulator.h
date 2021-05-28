@@ -3,32 +3,26 @@
 
 #include "ball.h"
 
-#define SAMPLE_PROB 0.5
+#define SAMPLE_PROB 0.50
 
 class Subemulator {
   public:
+    int n; // number of vertices
+    int b; // ball size
+    World * w; // CTF world
     Matrix<REAL> * H; // subemulator
     Vector<bpair> * q; // leaders
-    Matrix<REAL> * B; // ball // TODO: delete, pass as parameter instead
-    int b; // ball size
+    Matrix<REAL> * B; // ball of subemulator
 
-    Subemulator(Matrix<REAL> * A, int b_);
-
+    Subemulator(Matrix<REAL> * A, Matrix<REAL> * B_A, int b_);
+    Subemulator(Subemulator * A, int b_); // reuse ball information from previous subemulator
     Subemulator(Matrix<REAL> * H_, Vector<bpair> * q_, int b_);
 
     ~Subemulator();
 
-    Vector<int> * samples();
+    Vector<int> * samples(Matrix<REAL> * B_A);
 
-    void connects(Matrix<REAL> * A, Vector<int> * S);
-};
-
-class DistOracle {
-
-};
-
-class LowHopEm {
-
+    void connects(Matrix<REAL> * A, Matrix<REAL> * B_A, Vector<int> * S);
 };
 
 static Semiring<int> MAX_TIMES_SR(0,
