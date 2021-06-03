@@ -21,27 +21,24 @@ void LowHopEmulator::hierarchy(Matrix<REAL> * A) {
   int b = b0;
   Vector<bpair> * q = NULL;
   subems[0] = new Subemulator(A, q, b);
+  // if (w->rank == 0) printf("ball of input graph\n");
+  // subems[0]->B->print_matrix();
   for (int i = 1; i <= NUM_LEVELS; ++i) {
     subems[i] = new Subemulator(subems[i-1], b);
+    // if (w->rank == 0) printf("subemulator:\n");
+    // subems[i]->H->print_matrix();
     // b = pow(b, 1.25); // TODO: implement
   }
 }
-
-// void LowHopEmulator::collapse(Matrix<REAL> * A) { // A is passed for its metadata
-//   G = new Matrix<REAL>(A->nrow, A->ncol, A->symm|(A->is_sparse*SP), *A->wrld, MIN_PLUS_SR);
-//   (*G)["ii"] = 0.0;
-//   for (int i = NUM_LEVELS-1; i >= 0; --i) { // collapse sparsest levels first
-//     // (*G)["ij"] += pow(PENALTY, (NUM_LEVELS-1) - i) * (*subems[i]->H)["ij"]; // TODO: is penalty correct?
-//     (*G)["ij"] += (*subems[i]->H)["ij"]; // TODO: is penalty correct?
-//   }
-// }
 
 void LowHopEmulator::collapse(Matrix<REAL> * A) { // A is passed for its metadata
   G = new Matrix<REAL>(n, n, A->symm|(A->is_sparse*SP), *w, MIN_PLUS_SR);
   (*G)["ii"] = 0.0;
   for (int i = NUM_LEVELS; i >= 0; --i) { // collapse sparsest levels first
     (*G)["ij"] += (*(subems[i]->B))["ij"]; // TODO: add penalty
+    // (*G)["ij"] += (*(subems[i]->H))["ij"]; // TODO: add penalty
   }
+  (*G)["ij"] += (*G)["ji"]; // make undirected
 }
 
 Matrix<REAL> * LowHopEmulator::sssp_hierarchy(int vertex) {

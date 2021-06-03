@@ -15,23 +15,6 @@ Subemulator::Subemulator(Matrix<REAL> * A, Matrix<REAL> * B_A, int b_) { // A is
   bvec_to_mat(B, ball);
   delete ball;
   t_subemulator.stop();
-  if (w->rank == 0) printf("subemulator:\n");
-  H->print_matrix();
-
-  // Matrix<REAL> * Z = new Matrix<REAL>(*H);
-  // (*Z)["ii"] = 0.0;
-  // Matrix<REAL> * Z_prev = new Matrix<REAL>(Z->nrow, Z->ncol, Z->symm|(Z->is_sparse*SP), *Z->wrld, *Z->sr);
-  // int hops = 0;
-  // while (are_matrices_different(Z, Z_prev)) {
-  //   (*Z_prev)["ij"] = (*Z)["ij"];
-  //   (*Z)["ij"] += (*H)["ik"] * (*Z)["kj"];
-  //   ++hops;
-  // }
-  // if (Z->wrld->rank == 0)
-  //   printf("subemulator distances\n");
-  // Z->print_matrix();
-  // if (Z->wrld->rank == 0)
-  //   printf("subemulator has %d hops\n", hops);
 }
 
 Subemulator::Subemulator(Subemulator * A, int b_) : Subemulator(A->H, A->B, b_) { }
@@ -49,14 +32,12 @@ Subemulator::Subemulator(Matrix<REAL> * H_, Vector<bpair> * q_, int b_) {
   bvec_to_mat(B, ball);
   delete ball;
   t_subemulator.stop();
-  if (w->rank == 0) printf("subemulator:\n");
-  H->print_matrix();
 }
 
 Subemulator::~Subemulator() {
   delete H;
   delete q;
-  // delete B;
+  delete B;
 }
 
 Vector<int> * Subemulator::samples(Matrix<REAL> * B_A) {
@@ -66,9 +47,9 @@ Vector<int> * Subemulator::samples(Matrix<REAL> * B_A) {
   // B->print_matrix();
   Vector<int> * S = new Vector<int>(n, *w, MAX_TIMES_SR);
   Vector<int> ID = arange(0, n, 1, *w);
-  S->fill_random(1, 1 + 1.0/SAMPLE_PROB);
-  // Transform<int>([](int & s){ if (s > 1) s = 0; })((*S)["i"]);
-  S->sparsify([](int s){ return s == 1; });
+  Vector<REAL> probs(n, *w);
+  probs.fill_random(0.0, 1.0);
+  (*S)["i"] = Function<REAL, int>([](REAL p){ return p < SAMPLE_PROB; })(probs["i"]);
   // S->print();
   Bivar_Function<REAL,int,int> f([](REAL b, int s){ return s; });
   f.intersect_only = true;
@@ -152,6 +133,8 @@ void Subemulator::connects(Matrix<REAL> * A, Matrix<REAL> * B_A, Vector<int> * S
   (*q)["i"] = f((*B_A)["ij"], (*S)["j"]);
   Vector<int> ID = arange(0, n, 1, *w);
   Transform<int,bpair>([](int id, bpair & pr){ if (pr.vertex == -1) pr = bpair(id, 0.0); })(ID["i"], (*q)["i"]); // densifies q, necessary for PTAP
+  // if (w->rank == 0) printf("q:\n");
+  // q->print();
   Matrix<REAL> * C = new Matrix<REAL>(n, n, A->symm|(A->is_sparse*SP), *w, MIN_PLUS_SR);
   (*C)["ij"] = (*A)["ij"] + (*B_A)["ij"];
   C->sparsify();

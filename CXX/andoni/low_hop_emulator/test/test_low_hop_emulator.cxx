@@ -42,13 +42,15 @@ int main(int argc, char** argv)
       critter::start(critter_mode);
 #endif
       if (A != NULL) {
-        LowHopEmulator lhe(A, b, mode);
-        int64_t G_nnz = 0;
-        if (mode) {
 #ifdef DEBUG
           if (w.rank == 0)
             printf("input graph\n");
           A->print_matrix();
+#endif
+        LowHopEmulator lhe(A, b, mode);
+        int64_t G_nnz = 0;
+        if (mode) {
+#ifdef DEBUG
           if (w.rank == 0)
             printf("low hop emulator\n");
           lhe.G->print_matrix();
