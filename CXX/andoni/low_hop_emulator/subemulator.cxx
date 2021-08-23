@@ -50,7 +50,6 @@ Vector<int> * Subemulator::samples(Matrix<REAL> * B_A) {
   Vector<REAL> probs(n, *w);
   probs.fill_random(0.0, 1.0);
   (*S)["i"] = Function<REAL, int>([](REAL p){ return p < SAMPLE_PROB; })(probs["i"]);
-  // S->print();
   Bivar_Function<REAL,int,int> f([](REAL b, int s){ return s; });
   f.intersect_only = true;
   Vector<int> * is_close = new Vector<int>(n, *w, MAX_TIMES_SR);
@@ -64,15 +63,6 @@ Vector<int> * Subemulator::samples(Matrix<REAL> * B_A) {
   // S->print();
   delete is_close;
   t_samples.stop();
-  int64_t S_nnz = S->nnz_tot;
-  if (w->rank == 0) {
-    printf("subemulator has %d vertices\n", S_nnz);
-    int check = (int) (S_nnz <= 0.75*n);
-    if (check)
-      printf("passed: subemulator has less than 0.75n vertices\n");
-    else 
-      printf("failed: subemulator has more than 0.75n vertices\n");
-  }
   return S;
 }
 
@@ -143,6 +133,19 @@ void Subemulator::connects(Matrix<REAL> * A, Matrix<REAL> * B_A, Vector<int> * S
   H = PTAP(C, q);
   delete C;
   t_connects.stop();
+  Vector<REAL> * nz_rows = new Vector<REAL>(n, *w, MIN_PLUS_SR);
+  (*nz_rows)["i"] += Function<REAL,REAL>([](REAL h){ return fabs(h) > EPSILON ? h : MAX_REAL; })((*H)["ij"]); // ignore diagonal
+  nz_rows->sparsify();
+  int nnz_rows = (int) nz_rows->nnz_tot;
+  delete nz_rows;
+  if (w->rank == 0) {
+    printf("subemulator has %d vertices\n", nnz_rows);
+    int check = (int) (nnz_rows <= 0.75*n);
+    if (check)
+      printf("passed: subemulator has less than 0.75n vertices\n");
+    else 
+      printf("failed: subemulator has more than 0.75n vertices\n");
+  }
 }
 
 // void Subemulator::connects(Matrix<REAL> * A, Vector<int> * S) {

@@ -16,7 +16,7 @@ class Subemulator {
 
     Subemulator(Matrix<REAL> * A, Matrix<REAL> * B_A, int b_);
     Subemulator(Subemulator * A, int b_); // reuse ball information from previous subemulator
-    Subemulator(Matrix<REAL> * H_, Vector<bpair> * q_, int b_);
+    Subemulator(Matrix<REAL> * H_, Vector<bpair> * q_, int b_); // initialize base level
 
     ~Subemulator();
 
