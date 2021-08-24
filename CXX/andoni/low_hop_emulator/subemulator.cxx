@@ -134,13 +134,17 @@ void Subemulator::connects(Matrix<REAL> * A, Matrix<REAL> * B_A, Vector<int> * S
   delete C;
   t_connects.stop();
   Vector<REAL> * nz_rows = new Vector<REAL>(n, *w, MIN_PLUS_SR);
-  (*nz_rows)["i"] += Function<REAL,REAL>([](REAL h){ return fabs(h) > EPSILON ? h : MAX_REAL; })((*H)["ij"]); // ignore diagonal
+  Function<REAL,REAL> ignore_zeros([](REAL h){ return fabs(h) > EPSILON ? h : MAX_REAL; }); // ignore diagonal
+  (*nz_rows)["i"] = ignore_zeros((*A)["ij"]);
   nz_rows->sparsify();
-  int nnz_rows = (int) nz_rows->nnz_tot;
+  int A_nnz_rows = (int) nz_rows->nnz_tot;
+  (*nz_rows)["i"] = ignore_zeros((*H)["ij"]);
+  nz_rows->sparsify();
+  int H_nnz_rows = (int) nz_rows->nnz_tot;
   delete nz_rows;
   if (w->rank == 0) {
-    printf("subemulator has %d vertices\n", nnz_rows);
-    int check = (int) (nnz_rows <= 0.75*n);
+    printf("subemulator has %d vertices\n", H_nnz_rows);
+    int check = (int) (H_nnz_rows <= 0.75*A_nnz_rows);
     if (check)
       printf("passed: subemulator has less than 0.75n vertices\n");
     else 
