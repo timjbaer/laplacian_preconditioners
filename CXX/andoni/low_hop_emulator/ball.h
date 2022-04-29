@@ -3,26 +3,21 @@
 
 #include "shared.h"
 
-#define BALL_SIZE 4
+// ==================================================================
+// b closest neighbor set
+// ==================================================================
+// a b closest neighbor set (referred here as "ball") is a set that
+// is centered at some vertex and contains its b closest vertices
+// ==================================================================
 
-/***** utility *****/
-void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
-void filter(Matrix<REAL> * A, int b);
+#define BALL_SIZE 4 // b
 
-/***** matmat *****/
-static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
-    [](REAL a, REAL b) {
-      return std::min(a, b);
-    },
-    MPI_MIN,
-    0,
-    [](REAL a, REAL b) {
-      return a + b;
-    });
+// common -----------------------------------------------------------
 
-Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b);
-
-/***** common *****/
+/* the minimum element in a closest neighbor set
+ * a bpair is a tuple that contains a vertex id v, and then d(v,c),
+ * the distance from the vertex at the center of the ball c to v
+ */
 class bpair {
   public:
     int vertex;
@@ -38,8 +33,13 @@ class bpair {
     }
 };
 
-Monoid<bpair> get_bpair_monoid();
 
+/* a data structure for a closest neighbor set
+ * bvector is a vector of bpairs that contains the b closest
+ * neighor vertices to the center of the set
+ *
+ * the center has a bpair with value 0
+ */
 template<int b>
 class bvector {
   public: 
@@ -72,6 +72,7 @@ class bvector {
     }
 };
 
+// print functions --------------------------------------------------
 namespace CTF {
   template<>
   inline void Set<bpair>::print(char const * a, FILE * fp) const {
@@ -87,6 +88,20 @@ namespace CTF {
     }
   }
 }
+
+// algebraic functions for CTF  -------------------------------------
+
+static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
+    [](REAL a, REAL b) {
+      return std::min(a, b);
+    },
+    MPI_MIN,
+    0,
+    [](REAL a, REAL b) {
+      return a + b;
+    });
+
+Monoid<bpair> get_bpair_monoid();
 
 template<int b>
 bvector<b> bvector_red(bvector<b> const * x,
@@ -179,6 +194,12 @@ Monoid< bvector<b> > get_bvector_monoid() {
   return m;
 }
 
+// utility functions ------------------------------------------------
+
+void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
+void filter(Matrix<REAL> * A, int b);
+
+
 template<int b>
 void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   Timer t_init_closest_edges("init_closest_edges");
@@ -231,7 +252,11 @@ void bvec_to_mat(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   delete [] B_pairs;
 }
 
-/***** algorithms *****/
+// ball computation functions  --------------------------------------
+// move *
+
+Matrix<REAL> * ball_matmat(Matrix<REAL> * A, int b);
+
 template<int b>
 Vector<bvector<b>> * ball_bvector(Matrix<REAL> * A, int conv, int square) { // see section 3.1 & 3.2
   assert(A->is_sparse); // not strictly necessary, but much more efficient
