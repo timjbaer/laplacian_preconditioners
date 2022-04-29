@@ -1,5 +1,15 @@
 #include "test.h"
 
+// ==================================================================
+// Shared Functions for Test Cases
+// ==================================================================
+
+/* Compute the true SP distance between all nodes in A
+ * using Bellman-Ford (this implementation will not work for
+ * negative edge weights)
+ *
+ * Prints diameter of graph in hops and returns true distances
+ */
 Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b, char * name) { // TODO: refactor with correct_ball
   Matrix<REAL> * B = new Matrix<REAL>(*A);
   (*B)["ii"] = 0.0;
@@ -15,7 +25,6 @@ Matrix<REAL> * correct_dist(Matrix<REAL> * A, int b, char * name) { // TODO: ref
   delete B_prev;
   return B;
 }
-
 
 char* getCmdOption(char ** begin,
                    char ** end,
@@ -120,6 +129,9 @@ Matrix<REAL> * get_graph(int const in_num, char** input_str, World & w) {
   return A;
 }
 
+/* For all local data in A, per datum, add a random
+ * value between [0,1]
+ */
 void perturb(Matrix<REAL> * A) {
   int64_t A_npairs;
   Pair<REAL> * A_loc_pairs;
