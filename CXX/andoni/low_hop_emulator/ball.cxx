@@ -35,6 +35,8 @@ Monoid<bpair> get_bpair_monoid(){ // FIXME: causes "Attempting to use an MPI rou
 
 // utility functions ------------------------------------------------
 
+// write the first b closest neighbors for every vertex
+// using bpairs data from pairs to matrix A
 void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) {
   int n = A->nrow;
   Pair<REAL> wr_pairs[npairs];
@@ -56,6 +58,7 @@ void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs, int b) 
   A->write(nwrite, wr_pairs);
 }
 
+// filters the b closest neighbors from shortest paths matrix A
 void filter(Matrix<REAL> * A, int b) {
   assert(A->topo->order == 1 || A->wrld->np == 1); // A distributed on 1D processor grid
   Timer t_filter("filter");

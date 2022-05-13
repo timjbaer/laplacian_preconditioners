@@ -14,7 +14,7 @@
 
 // common -----------------------------------------------------------
 
-/* the minimum element in a closest neighbor set
+/* the base unit in a closest neighbor set
  * a bpair is a tuple that contains a vertex id v, and then d(v,c),
  * the distance from the vertex at the center of the ball c to v
  */
@@ -35,10 +35,11 @@ class bpair {
 
 
 /* a data structure for a closest neighbor set
- * bvector is a vector of bpairs that contains the b closest
+ * bvector is a vector of bpairs that represent the b closest
  * neighor vertices to the center of the set
  *
- * the center has a bpair with value 0
+ * the center has a bpair with value 0 and is at closest_neighbor[0]
+ *
  */
 template<int b>
 class bvector {
@@ -89,7 +90,7 @@ namespace CTF {
   }
 }
 
-// algebraic functions for CTF  -------------------------------------
+// algebraic functions and reductions for CTF  ----------------------
 
 static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
     [](REAL a, REAL b) {
@@ -103,28 +104,47 @@ static Semiring<REAL> MIN_PLUS_SR(MAX_REAL,
 
 Monoid<bpair> get_bpair_monoid();
 
+
+/* creates an MPI reduction over two sets of b-closest neighbor sets
+ * the reduction will, between two different bCN centered at some v, y[i]
+ * and x[i], find the new b-closest neighbors to v between the two
+ *
+ * input: an array x of bvectors x[i]
+ *        an array y of bvectors y[i]
+ *        nitems is the length of x and y
+ *
+ * output: array of bvectors that contains the bCN between x[i] and y[i]
+ */
 template<int b>
 bvector<b> bvector_red(bvector<b> const * x,
                  bvector<b> * y,
                  int nitems){
   Timer t_bvector_red("bvector_red");
   t_bvector_red.start();
+
 #ifdef _OPENMP
   #pragma omp parallel for
 #endif
   for (int item = 0; item < nitems; ++item) {
     if (x[item].closest_neighbors[0].vertex == -1) {
+      // if there are no vertices in ball x[i]
       continue;
     } else if (y[item].closest_neighbors[0].vertex == -1) {
+      // if there are no vertices in ball y[i]
       y[item] = x[item];
       continue;
     }
-    if (x[item].closest_neighbors[0].dist >= y[item].closest_neighbors[b-1].dist) { // should be taken much more often than below else if due to reordering
+    if (x[item].closest_neighbors[0].dist >= y[item].closest_neighbors[b-1].dist) {
+      // none of the neighbors in x[i] are closer than those already in y[i]
+      // should be taken much more often than below elseif due to reordering
       continue;
     } else if (y[item].closest_neighbors[0].dist >= x[item].closest_neighbors[b-1].dist) {
+      // all of the neighbors in x[i] are closer than those already in y[i]
       y[item] = x[item];
       continue;
     }
+
+    // add contents of the x[i] and y[i] that we currently work on to result
     int nnz = 0;
     bvector<2*b> res;
     for (int i = 0; i < b; ++i) {
@@ -139,6 +159,8 @@ bvector<b> bvector_red(bvector<b> const * x,
       res.closest_neighbors[nnz] = x[item].closest_neighbors[i];
       ++nnz;
     }
+
+    // sort result by vertex index
     std::sort(res.closest_neighbors, res.closest_neighbors + nnz, 
                   [](bpair const & first, bpair const & second) -> bool
                     { 
@@ -147,6 +169,8 @@ bvector<b> bvector_red(bvector<b> const * x,
                       else
                         return first.dist < second.dist; // break ties by distance
                     });
+
+    // remove duplicate vertices in result
     int prev = res.closest_neighbors[0].vertex; // assumes isolated vertices removed
     for (int i = 1; i < nnz; ++i) {
       int vertex = res.closest_neighbors[i].vertex;
@@ -157,10 +181,14 @@ bvector<b> bvector_red(bvector<b> const * x,
         prev = vertex;
       }
     }
+
+    // sort result by distance
     std::partial_sort(res.closest_neighbors, res.closest_neighbors + std::min(b,nnz), res.closest_neighbors + nnz,
                   [](bpair const & first, bpair const & second) -> bool
                     { return first.dist < second.dist; }
                     );
+
+    // this updates y[i] with the new bCN vertices from (min_b)(y[i], x[i])
     for (int i = 0; i < std::min(b,nnz); ++i) {
       y[item].closest_neighbors[i] = res.closest_neighbors[i];
     }
@@ -169,10 +197,12 @@ bvector<b> bvector_red(bvector<b> const * x,
       y[item].closest_neighbors[i].dist = MAX_REAL;
     }
   }
+
   t_bvector_red.stop();
   return *y; // result only used when nitems == 1
 }
 
+// creates a monoid using CTF using bvector_red used in ball_bvector
 template<int b>
 Monoid< bvector<b> > get_bvector_monoid() {
   MPI_Op obvector;
@@ -197,6 +227,8 @@ Monoid< bvector<b> > get_bvector_monoid() {
 // utility functions ------------------------------------------------
 
 void write_first_b(Matrix<REAL> * A, Pair<REAL> * pairs, int64_t npairs);
+
+// filter shortest paths matrix A for the b-closest values
 void filter(Matrix<REAL> * A, int b);
 
 
@@ -204,18 +236,30 @@ template<int b>
 void init_closest_edges(Matrix<REAL> * A, Vector<bvector<b>> * B) {
   Timer t_init_closest_edges("init_closest_edges");
   t_init_closest_edges.start();
+
   int n = A->nrow; 
   World * w = A->wrld;
-  Vector<int> v = arange<int>(0, n, 1, *w);
-  Transform<int,bvector<b>>([](int i, bvector<b> & bvec){ 
-    bvec.closest_neighbors[0].vertex = i; bvec.closest_neighbors[0].dist = 0.0; // a vertex is one of its closest neighbors
-  })(v["i"], (*B)["i"]);
-  Bivar_Function<REAL,int,bvector<b>> f([](REAL a, int j){
-    bvector<b> bvec;
-    bvec.closest_neighbors[0] = bpair(j, a);
-    return bvec;
-  });
+  Vector<int> v = arange<int>(0, n, 1, *w); // create vector of vertex indices
+
+  // instantiate each bCN centered at i to have the bpair (i, 0)
+  Transform<int,bvector<b>>(
+          [](int i, bvector<b> & bvec){
+            bvec.closest_neighbors[0].vertex = i;
+            bvec.closest_neighbors[0].dist = 0.0; // a vertex is one of its closest neighbors
+          }
+        )(v["i"], (*B)["i"]);
+
+  Bivar_Function<REAL,int,bvector<b>> f(
+          [](REAL a, int j){
+            bvector<b> bvec;
+            bvec.closest_neighbors[0] = bpair(j, a);
+            return bvec;
+          }
+        );
+
   f.intersect_only = true;
+
+  // adds all the elements in the adjacency matrix A to vector of bvectors B
   // (*B)["i"] = f((*A)["ij"], v["j"]);
   (*B)["i"] += f((*A)["ij"], v["j"]);
   t_init_closest_edges.stop();
@@ -225,7 +269,11 @@ template<int b>
 int64_t are_vectors_different(Vector<bvector<b>> * A, Vector<bvector<b>> * B)
 {
   Scalar<int64_t> s;
-  s[""] += Function<bvector<b>,bvector<b>,int64_t>([](bvector<b> a, bvector<b> c){ return (int64_t) fabs(a!=c); })((*A)["i"],(*B)["i"]);
+  s[""] += Function<bvector<b>,bvector<b>,int64_t>(
+             [](bvector<b> a, bvector<b> c){
+               return (int64_t) fabs(a!=c);
+             }
+           )((*A)["i"],(*B)["i"]);
   return s.get_val();
 }
 
