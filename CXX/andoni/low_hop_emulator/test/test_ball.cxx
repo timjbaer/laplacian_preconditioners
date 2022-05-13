@@ -1,5 +1,4 @@
-#include "test.h"
-#include "../ball.h"
+#include "test_ball.h"
 
 //===================================================================
 // Test Ball
@@ -88,6 +87,73 @@ int64_t check_ball(Matrix<REAL> * A, Vector<bvector<BALL_SIZE>> * B, int b) {
   int64_t s = check_ball(A, C, b);
   delete C;
   return s;
+}
+
+//-------------------------------------------------------------------
+
+void run_test_ball(int d, Matrix<REAL> * A, int bvec, int multi,
+        int conv, int square, int b, bool canPrint) {
+
+  // compute b-closest neighbors of all vertices
+  // by path doubling using matrix format
+  if (!bvec && !multi) {
+    TAU_FSTART(ball via matmat);
+    double stime = MPI_Wtime();
+    Matrix<REAL> * ball = ball_matmat(A, b);
+    double etime = MPI_Wtime();
+    TAU_FSTOP(ball via matmat);
+
+#ifdef DEBUG
+    if (canPrint) printf("ball (via matmat):\n");
+    ball->print_matrix(); // *
+#endif
+
+#if defined TEST || defined DEBUG
+    // compare results from b-closest neighbor function
+    // to true b-closest neighbors
+    int64_t diff = check_ball(A, ball, b);
+    if (canPrint)
+      printf("ball (via matmat) diff: %" PRId64 "\n", diff);
+#endif
+
+    delete ball;
+
+    if (canPrint)
+      printf("ball (via matmat) done in %1.2lf\n", etime - stime);
+
+
+  } else {
+  // compute b-closest neighbors of all using vector
+  // methods such as single ball update or using
+  // multilinear format
+    TAU_FSTART(ball via matvec);
+    double stime = MPI_Wtime();
+    Vector<bvector<BALL_SIZE>> * ball = nullptr;
+    if (bvec)
+      ball = ball_bvector<BALL_SIZE>(A,conv,square);
+    else if (multi)
+      ball = ball_multilinear<BALL_SIZE>(A,conv,square);
+    double etime = MPI_Wtime();
+    TAU_FSTOP(ball via matvec);
+
+#ifdef DEBUG
+    if (canPrint) printf("ball (via matvec):\n");
+    ball->print(); // *
+#endif
+
+#if defined TEST || defined DEBUG
+    // compare results from b-closest neighbor function
+    // to true b-closest neighbors
+    int64_t diff = check_ball(A, ball, b);
+    if (canPrint)
+      printf("ball (via matvec) diff: %" PRId64 "\n", diff);
+#endif
+
+    delete ball;
+
+    if (canPrint)
+      printf("ball (via matvec) done in %1.2lf\n", etime - stime);
+  }
 }
 
 //-------------------------------------------------------------------
@@ -198,69 +264,12 @@ int main(int argc, char** argv)
 
         if (!b) b = ceil(log2(A->nrow)); // *
 
-        // compute b-closest neighbors of all vertices
-        // by path doubling using matrix format
-        if (!bvec && !multi) {
-          TAU_FSTART(ball via matmat);
-          double stime = MPI_Wtime();
-          Matrix<REAL> * ball = ball_matmat(A, b);
-          double etime = MPI_Wtime();
-          TAU_FSTOP(ball via matmat);
-
-#ifdef DEBUG
-          if (w.rank == 0) printf("ball (via matmat):\n");
-          ball->print_matrix(); // *
-#endif
-
-#if defined TEST || defined DEBUG
-          // compare results from b-closest neighbor function
-          // to true b-closest neighbors
-          int64_t diff = check_ball(A, ball, b);
-          if (w.rank == 0)
-            printf("ball (via matmat) diff: %" PRId64 "\n", diff);
-#endif
-
-          delete ball;
-
-          if (w.rank == 0)
-            printf("ball (via matmat) done in %1.2lf\n", etime - stime);
-
-
+        if (w.rank == 0) {
+          run_test_ball(d, A, bvec, multi, conv, square, b, true);
         } else {
-        // compute b-closest neighbors of all using vector
-        // methods such as single ball update or using
-        // multilinear format
-          TAU_FSTART(ball via matvec);
-          double stime = MPI_Wtime();
-          Vector<bvector<BALL_SIZE>> * ball = nullptr;
-          if (bvec)
-            ball = ball_bvector<BALL_SIZE>(A,conv,square);
-          else if (multi)
-            ball = ball_multilinear<BALL_SIZE>(A,conv,square);
-          double etime = MPI_Wtime();
-          TAU_FSTOP(ball via matvec);
-
-#ifdef DEBUG
-          if (w.rank == 0) printf("ball (via matvec):\n");
-          ball->print(); // *
-#endif
-
-#if defined TEST || defined DEBUG
-          // compare results from b-closest neighbor function
-          // to true b-closest neighbors
-          int64_t diff = check_ball(A, ball, b);
-          if (w.rank == 0)
-            printf("ball (via matvec) diff: %" PRId64 "\n", diff);
-#endif
-
-          delete ball;
-
-          if (w.rank == 0)
-            printf("ball (via matvec) done in %1.2lf\n", etime - stime);
+          run_test_ball(d, A, bvec, multi, conv, square, b, false);
         }
-
       }
-
 #ifdef CRITTER
       critter::stop(critter_mode);
 #endif
