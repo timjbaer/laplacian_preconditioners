@@ -2,7 +2,7 @@ include config.mk
 
 all: tests debug
 
-tests: test_low_hop_emulator test_subemulator test_ball
+tests: test_low_hop_emulator test_subemulator test_ball unit_tests run_test_ball
 
 debug: debug_low_hop_emulator debug_subemulator debug_ball
 
@@ -26,8 +26,11 @@ graph.o: ../../graph.h ../../graph.cxx ../../graph_io.h
 test.o: ./test/test.h ./test/test.cxx ../../graph.h ../../graph_io.h shared.h $(CTFDIR)
 	$(CXX) $(CXXFLAGS) -c ./test/test.cxx $(DEFS) $(INCLUDES)
 
-test_ball: ./test/test_ball.cxx shared.o ball.o graph.o test.o $(CTFDIR)
-	$(CXX) $(CXXFLAGS) -DTEST -o test_ball ./test/test_ball.cxx shared.o ball.o graph.o test.o $(INCLUDES) $(LIB_PATH) $(LIBS)
+test_ball.o: ./test/test_ball.cxx ./test/test_ball.h shared.o ball.o graph.o test.o $(CTFDIR)
+	$(CXX) $(CXXFLAGS) -c $< $(DEFS) $(INCLUDES)
+
+test_ball: ./test/run_test_ball.cxx test_ball.o shared.o ball.o graph.o test.o $(CTFDIR)
+	$(CXX) $(CXXFLAGS) -DTEST -o test_ball $< test_ball.o shared.o ball.o graph.o test.o $(INCLUDES) $(LIB_PATH) $(LIBS)
 
 debug_ball: ./test/test_ball.cxx shared.o ball.o graph.o test.o $(CTFDIR)
 	$(CXX) $(CXXFLAGS) -DDEBUG -o debug_ball ./test/test_ball.cxx shared.o ball.o graph.o test.o $(INCLUDES) $(LIB_PATH) $(LIBS)
@@ -53,5 +56,8 @@ debug_low_hop_emulator: ./test/test_low_hop_emulator.cxx low_hop_emulator.o sube
 bench_low_hop_emulator: ./test/test_low_hop_emulator.cxx low_hop_emulator.o subemulator.o shared.o ball.o graph.o test.o $(CTFDIR)
 	$(CXX) $(CXXFLAGS) -o bench_low_hop_emulator ./test/test_low_hop_emulator.cxx low_hop_emulator.o subemulator.o shared.o ball.o graph.o test.o $(INCLUDES) $(LIB_PATH) $(LIBS)
 
+unit_tests: ./test/unit_tests.cxx test_ball.o shared.o ball.o graph.o test.o $(CTFDIR)
+	$(CXX) $(CXXFLAGS) -DTEST -o unit_tests $< test_ball.o shared.o ball.o graph.o test.o $(INCLUDES) $(LIB_PATH) $(LIBS)
+
 clean:
-	rm -f *.o test_low_hop_emulator debug_low_hop_emulator bench_low_hop_emulator test_subemulator debug_subemulator bench_subemulator test_ball debug_ball bench_ball
+	rm -f *.o test_low_hop_emulator debug_low_hop_emulator bench_low_hop_emulator test_subemulator debug_subemulator bench_subemulator test_ball debug_ball bench_ball unit_tests
