@@ -27,7 +27,7 @@
 //
 // -b [Z]                             number of closest neighbors
 //
-// -bvec | -multi                    run bvector or multilinear
+// -bvec 1 | -multi 1                 run bvector or multilinear
 //
 // -d [1,2]                           1D or 2D data partition layout
 //
@@ -139,6 +139,11 @@ int main(int argc, char** argv)
     } else multi = 0;
 
     assert(!multi || !bvec);
+    if (rank == 0) {
+      if (bvec > 0) { printf("Using bvector...\n");
+      } else if (multi > 0) { printf("Using multilinear...\n");
+      } else { printf("Using matmat...\n"); }
+    }
 
     if (getCmdOption(input_str, input_str+in_num, "-conv")){
       conv = atoi(getCmdOption(input_str, input_str+in_num, "-conv"));
@@ -212,13 +217,13 @@ int main(int argc, char** argv)
           // to true b-closest neighbors
           int64_t diff = check_ball(A, ball, b);
           if (w.rank == 0)
-            printf("ball (via matvec) diff: %" PRId64 "\n", diff);
+            printf("ball (via matmat) diff: %" PRId64 "\n", diff);
 #endif
 
           delete ball;
 
           if (w.rank == 0)
-            printf("ball (via matvec) done in %1.2lf\n", etime - stime);
+            printf("ball (via matmat) done in %1.2lf\n", etime - stime);
 
 
         } else {
